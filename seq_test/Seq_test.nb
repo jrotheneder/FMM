@@ -1,0 +1,232 @@
+(* Content-type: application/vnd.wolfram.mathematica *)
+
+(*** Wolfram Notebook File ***)
+(* http://www.wolfram.com/nb *)
+
+(* CreatedBy='Mathematica 11.0' *)
+
+(*CacheID: 234*)
+(* Internal cache information:
+NotebookFileLineBreakTest
+NotebookFileLineBreakTest
+NotebookDataPosition[       158,          7]
+NotebookDataLength[      8137,        224]
+NotebookOptionsPosition[      7342,        195]
+NotebookOutlinePosition[      7989,        217]
+CellTagsIndexPosition[      7946,        214]
+WindowFrame->Normal*)
+
+(* Beginning of Notebook Content *)
+Notebook[{
+
+Cell[CellGroupData[{
+Cell["FMM Seq. Test & Quadtree Visualization", "Title",
+ CellChangeTimes->{{3.765306072713745*^9, 3.7653060835077667`*^9}},
+ TextAlignment->Center],
+
+Cell[BoxData[{
+ RowBox[{"<<", " ", "Utility`"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"<<", " ", "MaTeX`"}], 
+  "\[IndentingNewLine]"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"SetDirectory", "[", "NBD", "]"}], ";"}]}], "Input",
+ InitializationCell->True,
+ CellChangeTimes->{{3.765306193441283*^9, 3.7653062037009497`*^9}, {
+   3.765312056691987*^9, 3.765312056873152*^9}, 3.765314656681868*^9}],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"quadtreeNodes", " ", "=", " ", 
+   RowBox[{
+    RowBox[{
+     RowBox[{"With", "[", 
+      RowBox[{
+       RowBox[{"{", 
+        RowBox[{
+         RowBox[{"xlwr", " ", "=", " ", "#5"}], ",", " ", 
+         RowBox[{"ylwr", " ", "=", " ", "#6"}], ",", " ", 
+         RowBox[{"cx", " ", "=", " ", "#3"}], ",", " ", 
+         RowBox[{"cy", "=", "#4"}]}], "}"}], ",", 
+       RowBox[{"{", 
+        RowBox[{"#1", ",", "#2", ",", "xlwr", ",", "ylwr", ",", 
+         RowBox[{
+          RowBox[{"2", "cx"}], "  ", "-", " ", "xlwr"}], ",", " ", 
+         RowBox[{
+          RowBox[{"2", "cy"}], " ", "-", " ", "ylwr"}]}], " ", "}"}]}], "]"}],
+      "&"}], "@@@", 
+    RowBox[{"Import", "[", 
+     RowBox[{"\"\<geometry.dat\>\"", ",", "\"\<Table\>\"", ",", 
+      RowBox[{"\"\<FieldSeparators\>\"", "\[Rule]", "\"\<,\>\""}]}], 
+     "]"}]}]}], ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{
+   RowBox[{"quadtreeData", " ", "=", " ", 
+    RowBox[{"Import", "[", 
+     RowBox[{"\"\<points.dat\>\"", ",", "\"\<Table\>\"", ",", 
+      RowBox[{"\"\<FieldSeparators\>\"", "\[Rule]", "\"\<,\>\""}]}], "]"}]}], 
+   ";"}], "\[IndentingNewLine]"}], "\n", 
+ RowBox[{
+  RowBox[{"quadtreeNodesbyLevel", " ", "=", " ", 
+   RowBox[{"GroupBy", "[", 
+    RowBox[{"quadtreeNodes", ",", 
+     RowBox[{
+      RowBox[{"#", "[", 
+       RowBox[{"[", "2", "]"}], "]"}], "&"}]}], "]"}]}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"quadtreeDataByNode", " ", "=", " ", 
+   RowBox[{
+    RowBox[{
+     RowBox[{"Partition", "[", 
+      RowBox[{
+       RowBox[{"#", "[", 
+        RowBox[{"[", "1", "]"}], "]"}], ",", "2"}], "]"}], "&"}], "/@", " ", 
+    RowBox[{"GroupBy", "[", 
+     RowBox[{
+      RowBox[{
+       RowBox[{"quadtreeData", "[", 
+        RowBox[{"[", 
+         RowBox[{";;", ",", 
+          RowBox[{"2", ";;"}]}], "]"}], "]"}], "//.", " ", 
+       RowBox[{
+        RowBox[{"{", "}"}], "\[Rule]", 
+        RowBox[{"Sequence", "[", "]"}]}]}], ",", 
+      RowBox[{
+       RowBox[{"#", "[", 
+        RowBox[{"[", "1", "]"}], "]"}], "&"}]}], "]"}]}]}], " ", 
+  ";"}]}], "Input",
+ CellChangeTimes->{{3.765306153826641*^9, 3.765306156166518*^9}, {
+   3.765306189916923*^9, 3.765306192420001*^9}, {3.765306228443913*^9, 
+   3.7653062365296507`*^9}, {3.765310359930539*^9, 3.765310373248488*^9}, {
+   3.76531056810246*^9, 3.765310588148979*^9}, {3.765310654651972*^9, 
+   3.765310666178987*^9}, {3.76531072093867*^9, 3.765310723858541*^9}, 
+   3.7653128064957952`*^9, {3.7653146454122467`*^9, 3.765314659642091*^9}}],
+
+Cell[CellGroupData[{
+
+Cell[BoxData[
+ RowBox[{"Manipulate", "[", 
+  RowBox[{
+   RowBox[{"Show", 
+    StyleBox["[", "Input"], 
+    StyleBox[
+     RowBox[{"{", "\[IndentingNewLine]", 
+      RowBox[{
+       RowBox[{"Graphics", "[", 
+        RowBox[{
+         RowBox[{"{", 
+          RowBox[{
+           RowBox[{"EdgeForm", "[", "Black", "]"}], ",", 
+           RowBox[{"Opacity", "[", "0", "]"}], ",", 
+           RowBox[{
+            RowBox[{
+             RowBox[{"Rectangle", "[", 
+              RowBox[{
+               RowBox[{"{", 
+                RowBox[{"#3", ",", "#4"}], "}"}], ",", 
+               RowBox[{"{", 
+                RowBox[{"#5", ",", "#6"}], "}"}]}], "]"}], "&"}], "@@@", " ", 
+            
+            RowBox[{"quadtreeNodesbyLevel", "[", "l", "]"}]}]}], "}"}], ",", 
+         RowBox[{"Frame", "\[Rule]", "True"}]}], "]"}], ",", 
+       "\[IndentingNewLine]", 
+       RowBox[{"ListPlot", "[", 
+        RowBox[{"Values", "[", "quadtreeDataByNode", "]"}], "]"}]}], 
+      "\[IndentingNewLine]", "}"}], "Input"], 
+    StyleBox["]", "Input"]}], ",", 
+   RowBox[{"{", 
+    RowBox[{"l", ",", "0", ",", 
+     RowBox[{
+      RowBox[{"Length", "[", "quadtreeNodesbyLevel", "]"}], "-", "1"}], ",", 
+     "1"}], "}"}]}], "]"}]], "Input",
+ CellChangeTimes->{{3.765312882589204*^9, 3.765313035570677*^9}, {
+  3.765313266259618*^9, 3.765313266362226*^9}, {3.765313298028767*^9, 
+  3.7653133097664537`*^9}, {3.765313823102285*^9, 3.765313832375024*^9}, {
+  3.76531427666072*^9, 3.765314276798758*^9}, {3.7653143284714317`*^9, 
+  3.765314328612067*^9}}],
+
+Cell[BoxData[
+ TagBox[
+  StyleBox[
+   DynamicModuleBox[{$CellContext`l$$ = 5, Typeset`show$$ = True, 
+    Typeset`bookmarkList$$ = {}, Typeset`bookmarkMode$$ = "Menu", 
+    Typeset`animator$$, Typeset`animvar$$ = 1, Typeset`name$$ = 
+    "\"untitled\"", Typeset`specs$$ = {{
+      Hold[$CellContext`l$$], 0, 5, 1}}, Typeset`size$$ = {
+    423., {207., 213.}}, Typeset`update$$ = 0, Typeset`initDone$$, 
+    Typeset`skipInitDone$$ = True, $CellContext`l$1337$$ = 0}, 
+    DynamicBox[Manipulate`ManipulateBoxes[
+     1, StandardForm, "Variables" :> {$CellContext`l$$ = 0}, 
+      "ControllerVariables" :> {
+        Hold[$CellContext`l$$, $CellContext`l$1337$$, 0]}, 
+      "OtherVariables" :> {
+       Typeset`show$$, Typeset`bookmarkList$$, Typeset`bookmarkMode$$, 
+        Typeset`animator$$, Typeset`animvar$$, Typeset`name$$, 
+        Typeset`specs$$, Typeset`size$$, Typeset`update$$, Typeset`initDone$$,
+         Typeset`skipInitDone$$}, "Body" :> Show[{
+         Graphics[{
+           EdgeForm[Black], 
+           Opacity[0], 
+           Apply[Rectangle[{#3, #4}, {#5, #6}]& , 
+            $CellContext`quadtreeNodesbyLevel[$CellContext`l$$], {1}]}, Frame -> 
+          True], 
+         ListPlot[
+          Values[$CellContext`quadtreeDataByNode]]}], 
+      "Specifications" :> {{$CellContext`l$$, 0, 5, 1}}, "Options" :> {}, 
+      "DefaultOptions" :> {}],
+     ImageSizeCache->{470., {261., 268.}},
+     SingleEvaluation->True],
+    Deinitialization:>None,
+    DynamicModuleValues:>{},
+    SynchronousInitialization->True,
+    UndoTrackedVariables:>{Typeset`show$$, Typeset`bookmarkMode$$},
+    UnsavedVariables:>{Typeset`initDone$$},
+    UntrackedVariables:>{Typeset`size$$}], "Manipulate",
+   Deployed->True,
+   StripOnInput->False],
+  Manipulate`InterpretManipulate[1]]], "Output",
+ CellChangeTimes->{{3.765312911092852*^9, 3.765313036023178*^9}, 
+   3.765313266627288*^9, 3.7653138328675413`*^9, 3.765314127652234*^9, 
+   3.765314215037654*^9, 3.7653142773467417`*^9, 3.7653143289895906`*^9, 
+   3.76531445141324*^9, {3.7653146615149097`*^9, 3.7653146699703913`*^9}}]
+}, Open  ]]
+}, Open  ]]
+},
+WindowSize->{960, 1025},
+WindowMargins->{{960, 0}, {0, Automatic}},
+FrontEndVersion->"11.0 for Linux x86 (64-bit) (July 28, 2016)",
+StyleDefinitions->Notebook[{
+   Cell[
+    StyleData[StyleDefinitions -> "Default.nb"]], 
+   Cell[
+    StyleData["Graphics", All], FontFamily -> "CMU Serif", FontSize -> 10, 
+    FontColor -> GrayLevel[0]]}, Visible -> False, FrontEndVersion -> 
+  "11.0 for Linux x86 (64-bit) (July 28, 2016)", StyleDefinitions -> 
+  "PrivateStylesheetFormatting.nb"]
+]
+(* End of Notebook Content *)
+
+(* Internal cache information *)
+(*CellTagsOutline
+CellTagsIndex->{}
+*)
+(*CellTagsIndex
+CellTagsIndex->{}
+*)
+(*NotebookFileOutline
+Notebook[{
+Cell[CellGroupData[{
+Cell[580, 22, 147, 2, 93, "Title"],
+Cell[730, 26, 407, 9, 106, "Input",
+ InitializationCell->True],
+Cell[1140, 37, 2534, 66, 180, "Input"],
+Cell[CellGroupData[{
+Cell[3699, 107, 1534, 39, 128, "Input"],
+Cell[5236, 148, 2078, 43, 546, "Output"]
+}, Open  ]]
+}, Open  ]]
+}
+]
+*)
+
