@@ -10,10 +10,10 @@
 NotebookFileLineBreakTest
 NotebookFileLineBreakTest
 NotebookDataPosition[       158,          7]
-NotebookDataLength[      9336,        239]
-NotebookOptionsPosition[      8265,        210]
-NotebookOutlinePosition[      8912,        232]
-CellTagsIndexPosition[      8869,        229]
+NotebookDataLength[     11201,        278]
+NotebookOptionsPosition[      9936,        247]
+NotebookOutlinePosition[     10589,        269]
+CellTagsIndexPosition[     10546,        266]
 WindowFrame->Normal*)
 
 (* Beginning of Notebook Content *)
@@ -34,7 +34,7 @@ Cell[BoxData[{
  InitializationCell->True,
  CellChangeTimes->{{3.765306193441283*^9, 3.7653062037009497`*^9}, {
    3.765312056691987*^9, 3.765312056873152*^9}, 3.765314656681868*^9},
- CellLabel->"In[4]:=",ExpressionUUID->"a297ad90-e482-4d8d-ac2f-afc759f162cc"],
+ CellLabel->"In[1]:=",ExpressionUUID->"a297ad90-e482-4d8d-ac2f-afc759f162cc"],
 
 Cell[BoxData[{
  RowBox[{
@@ -78,33 +78,30 @@ Cell[BoxData[{
  RowBox[{
   RowBox[{"quadtreeDataByNode", " ", "=", " ", 
    RowBox[{
-    RowBox[{
-     RowBox[{"Partition", "[", 
-      RowBox[{
-       RowBox[{"#", "[", 
-        RowBox[{"[", "1", "]"}], "]"}], ",", "2"}], "]"}], "&"}], "/@", " ", 
-    RowBox[{"GroupBy", "[", 
+    RowBox[{"Association", "[", 
      RowBox[{
       RowBox[{
-       RowBox[{"quadtreeData", "[", 
-        RowBox[{"[", 
-         RowBox[{";;", ",", 
-          RowBox[{"2", ";;"}]}], "]"}], "]"}], "//.", " ", 
        RowBox[{
-        RowBox[{"{", "}"}], "\[Rule]", 
-        RowBox[{"Sequence", "[", "]"}]}]}], ",", 
-      RowBox[{
-       RowBox[{"#", "[", 
-        RowBox[{"[", "1", "]"}], "]"}], "&"}]}], "]"}]}]}], " ", 
-  ";"}]}], "Input",
+        RowBox[{"#", "[", 
+         RowBox[{"[", "1", "]"}], "]"}], "\[Rule]", 
+        RowBox[{"Partition", "[", 
+         RowBox[{
+          RowBox[{"#", "[", 
+           RowBox[{"[", 
+            RowBox[{"2", ";;"}], "]"}], "]"}], ",", "2"}], "]"}]}], "&"}], "/@",
+       " ", "quadtreeData"}], "]"}], " ", "//.", " ", 
+    RowBox[{
+     RowBox[{"{", "}"}], "\[Rule]", 
+     RowBox[{"Sequence", "[", "]"}]}]}]}], " ", ";"}]}], "Input",
  CellChangeTimes->{{3.765306153826641*^9, 3.765306156166518*^9}, {
    3.765306189916923*^9, 3.765306192420001*^9}, {3.765306228443913*^9, 
    3.7653062365296507`*^9}, {3.765310359930539*^9, 3.765310373248488*^9}, {
    3.76531056810246*^9, 3.765310588148979*^9}, {3.765310654651972*^9, 
    3.765310666178987*^9}, {3.76531072093867*^9, 3.765310723858541*^9}, 
    3.7653128064957952`*^9, {3.7653146454122467`*^9, 3.765314659642091*^9}, 
-   3.765465209130671*^9},
- CellLabel->"In[7]:=",ExpressionUUID->"ead56676-13ad-4377-a2bc-d4bc6a788c08"],
+   3.765465209130671*^9, {3.765548501441495*^9, 3.765548508314419*^9}, {
+   3.765548588366755*^9, 3.7655485913270483`*^9}, 3.76554954508352*^9},
+ CellLabel->"In[21]:=",ExpressionUUID->"ead56676-13ad-4377-a2bc-d4bc6a788c08"],
 
 Cell[CellGroupData[{
 
@@ -129,51 +126,48 @@ Cell[BoxData[{
           RowBox[{
            RowBox[{"EdgeForm", "[", "Black", "]"}], ",", 
            RowBox[{"Opacity", "[", "0", "]"}], ",", 
-           RowBox[{
+           RowBox[{"Dynamic", "[", 
             RowBox[{
-             RowBox[{"Rectangle", "[", 
-              RowBox[{
-               RowBox[{"{", 
-                RowBox[{"#3", ",", "#4"}], "}"}], ",", 
-               RowBox[{"{", 
-                RowBox[{"#5", ",", "#6"}], "}"}]}], "]"}], "&"}], "@@@", " ", 
-            
-            RowBox[{"quadtreeNodesbyLevel", "[", "l", "]"}]}]}], "}"}], ",", 
+             RowBox[{
+              RowBox[{"Rectangle", "[", 
+               RowBox[{
+                RowBox[{"{", 
+                 RowBox[{"#3", ",", "#4"}], "}"}], ",", 
+                RowBox[{"{", 
+                 RowBox[{"#5", ",", "#6"}], "}"}]}], "]"}], "&"}], "@@@", " ", 
+             RowBox[{"quadtreeNodesbyLevel", "[", 
+              RowBox[{"[", "l", "]"}], "]"}]}], "]"}]}], "}"}], ",", 
          RowBox[{"Frame", "\[Rule]", "True"}]}], "]"}]}], 
       "\[IndentingNewLine]", "}"}], "Input"], 
     StyleBox["]", "Input"]}], ",", 
    RowBox[{"{", 
-    RowBox[{
-     RowBox[{"{", 
-      RowBox[{"l", ",", 
-       RowBox[{
-        RowBox[{"Length", "[", "quadtreeNodesbyLevel", "]"}], "-", "2"}]}], 
-      "}"}], ",", "0", ",", 
-     RowBox[{
-      RowBox[{"Length", "[", "quadtreeNodesbyLevel", "]"}], "-", "1"}], ",", 
-     "1"}], "}"}]}], "]"}]}], "Input",
- CellChangeTimes->{{3.765312882589204*^9, 3.765313035570677*^9}, {
-  3.765313266259618*^9, 3.765313266362226*^9}, {3.765313298028767*^9, 
-  3.7653133097664537`*^9}, {3.765313823102285*^9, 3.765313832375024*^9}, {
-  3.76531427666072*^9, 3.765314276798758*^9}, {3.7653143284714317`*^9, 
-  3.765314328612067*^9}, {3.76546513034007*^9, 3.7654651656248503`*^9}, {
-  3.7654654073839817`*^9, 3.7654654556267223`*^9}},
- CellLabel->"In[15]:=",ExpressionUUID->"d3a5136f-f884-468d-a6ea-0fda3d884643"],
+    RowBox[{"l", ",", "1", ",", 
+     RowBox[{"Length", "[", "quadtreeNodesbyLevel", "]"}], ",", "1"}], 
+    "}"}]}], "]"}]}], "Input",
+ CellChangeTimes->CompressedData["
+1:eJxTTMoPSmViYGAQBWIQfehW0LrDvG8c/zgVHQTRp/w87oHo6OneYHrla4dH
+YPG2HY9B9GvXx8pHgLQRA48qiJ6nMjUGROf2zwTTP0T5k0E03zRhMH3roRcr
+H98bx2P/NnOC6Cmeb9RBtAzfF10QLXJqoYsZkE5oWAym22MveIDoosyrYHrC
+AetIEF2gmQymT9w3TQTRIUHmYPrZjYtdIJoh9BqYLor542kOohOyvUD0mTmN
+SSD6jvBMMO0kJLYJRN+wSQHTjxiXfwPLTzwOpnes/allAaT3nV6tC6InvMhw
+AvOLG8C0sdMmNxAdkJvnDqLP/IzwBdFaczr8QDQAVUSXnw==
+  "],
+ CellLabel->"In[31]:=",ExpressionUUID->"d3a5136f-f884-468d-a6ea-0fda3d884643"],
 
 Cell[BoxData[
  TagBox[
   StyleBox[
-   DynamicModuleBox[{$CellContext`l$$ = 3, Typeset`show$$ = True, 
+   DynamicModuleBox[{$CellContext`l$$ = 6, Typeset`show$$ = True, 
     Typeset`bookmarkList$$ = {}, Typeset`bookmarkMode$$ = "Menu", 
     Typeset`animator$$, Typeset`animvar$$ = 1, Typeset`name$$ = 
-    "\"untitled\"", Typeset`specs$$ = {{{
-       Hold[$CellContext`l$$], 3}, 0, 4, 1}}, Typeset`size$$ = {
-    360., {178., 185.}}, Typeset`update$$ = 0, Typeset`initDone$$, 
-    Typeset`skipInitDone$$ = True, $CellContext`l$3033$$ = 0}, 
+    "\"untitled\"", Typeset`specs$$ = {{
+      Hold[$CellContext`l$$], 1, 6, 1}}, Typeset`size$$ = {
+    446., {221., 228.}}, Typeset`update$$ = 0, Typeset`initDone$$, 
+    Typeset`skipInitDone$$ = True, $CellContext`l$7586$$ = 0}, 
     DynamicBox[Manipulate`ManipulateBoxes[
-     1, StandardForm, "Variables" :> {$CellContext`l$$ = 3}, 
+     1, StandardForm, "Variables" :> {$CellContext`l$$ = 1}, 
       "ControllerVariables" :> {
-        Hold[$CellContext`l$$, $CellContext`l$3033$$, 0]}, 
+        Hold[$CellContext`l$$, $CellContext`l$7586$$, 0]}, 
       "OtherVariables" :> {
        Typeset`show$$, Typeset`bookmarkList$$, Typeset`bookmarkMode$$, 
         Typeset`animator$$, Typeset`animvar$$, Typeset`name$$, 
@@ -182,11 +176,13 @@ Cell[BoxData[
          Graphics[{
            EdgeForm[Black], 
            Opacity[0], 
-           Apply[Rectangle[{#3, #4}, {#5, #6}]& , 
-            $CellContext`quadtreeNodesbyLevel[$CellContext`l$$], {1}]}, Frame -> 
-          True]}], "Specifications" :> {{{$CellContext`l$$, 3}, 0, 4, 1}}, 
-      "Options" :> {}, "DefaultOptions" :> {}],
-     ImageSizeCache->{407., {223., 230.}},
+           Dynamic[
+            Apply[Rectangle[{#3, #4}, {#5, #6}]& , 
+             Part[$CellContext`quadtreeNodesbyLevel, $CellContext`l$$], {
+             1}]]}, Frame -> True]}], 
+      "Specifications" :> {{$CellContext`l$$, 1, 6, 1}}, "Options" :> {}, 
+      "DefaultOptions" :> {}],
+     ImageSizeCache->{493., {277., 284.}},
      SingleEvaluation->True],
     Deinitialization:>None,
     DynamicModuleValues:>{},
@@ -203,13 +199,54 @@ Cell[BoxData[
    3.76531445141324*^9, {3.7653146615149097`*^9, 3.7653146699703913`*^9}, {
    3.765361557661113*^9, 3.7653615753215218`*^9}, {3.7654651085084047`*^9, 
    3.765465166340571*^9}, {3.765465398818254*^9, 3.7654654156189213`*^9}, 
-   3.765465456150857*^9},
- CellLabel->"Out[16]=",ExpressionUUID->"122e6266-68ed-4f93-9355-2fae586f3aa5"]
-}, Open  ]]
+   3.765465456150857*^9, {3.7654864620707407`*^9, 3.765486467329773*^9}, {
+   3.765547258287045*^9, 3.7655472640776443`*^9}, {3.765547505090053*^9, 
+   3.765547591612275*^9}, {3.765547724103897*^9, 3.765547734203333*^9}, {
+   3.76554778656467*^9, 3.765547810608712*^9}, 3.765548076732621*^9, 
+   3.7655481195036182`*^9, 3.765548301244248*^9, 3.7655487697494993`*^9, 
+   3.765548876254799*^9, 3.76554956385641*^9, 3.765549652059251*^9, 
+   3.765549845393401*^9, 3.765550483880498*^9, 3.765550657098749*^9, 
+   3.76555086621697*^9, 3.7655510307844887`*^9, 3.765551471053134*^9, 
+   3.7655516761489897`*^9, {3.7655517330808687`*^9, 3.765551745641128*^9}},
+ CellLabel->"Out[32]=",ExpressionUUID->"c1485db2-7983-4b7d-ac83-dd23c827ea4c"]
+}, Open  ]],
+
+Cell[BoxData[{
+ RowBox[{
+  RowBox[{"h", " ", "=", " ", 
+   RowBox[{"Max", " ", "@", " ", 
+    RowBox[{"quadtreeNodes", "[", 
+     RowBox[{"[", 
+      RowBox[{";;", ",", "2"}], "]"}], "]"}]}]}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"n", " ", "=", " ", 
+   RowBox[{
+    RowBox[{
+     RowBox[{"Length", " ", "@", " ", 
+      RowBox[{"Flatten", "[", 
+       RowBox[{"#", ",", "1"}], "]"}]}], "&"}], "@", " ", 
+    RowBox[{"Values", "[", "quadtreeDataByNode", "]"}]}]}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"nLeaves", " ", "=", " ", 
+   RowBox[{"Length", " ", "@", " ", "quadtreeData"}]}], 
+  ";"}], "\[IndentingNewLine]", 
+ RowBox[{
+  RowBox[{"avgNPerLeaf", " ", "=", " ", 
+   RowBox[{
+    RowBox[{"n", "/", "nLeaves"}], " ", "//", "N"}]}], ";"}]}], "Input",
+ CellChangeTimes->{{3.765551787041687*^9, 3.765551890652936*^9}},
+ CellLabel->"In[58]:=",ExpressionUUID->"5f4d786d-ae84-42f8-86f5-3a6c133fd78b"],
+
+Cell[BoxData[""], "Input",
+ CellChangeTimes->{{3.7655518404252777`*^9, 
+  3.7655518575659533`*^9}},ExpressionUUID->"a6b2643c-fbfd-444a-96da-\
+c903e107fe5e"]
 }, Open  ]]
 },
 WindowSize->{960, 1025},
-WindowMargins->{{960, 0}, {0, Automatic}},
+WindowMargins->{{Automatic, 0}, {0, Automatic}},
 FrontEndVersion->"12.0 for Linux x86 (64-bit) (April 8, 2019)",
 StyleDefinitions->Notebook[{
    Cell[
@@ -235,11 +272,13 @@ Cell[CellGroupData[{
 Cell[580, 22, 202, 2, 99, "Title",ExpressionUUID->"20b3e9fa-13ef-437a-8ffb-39c21866f0df"],
 Cell[785, 26, 485, 10, 117, "Input",ExpressionUUID->"a297ad90-e482-4d8d-ac2f-afc759f162cc",
  InitializationCell->True],
-Cell[1273, 38, 2638, 68, 193, "Input",ExpressionUUID->"ead56676-13ad-4377-a2bc-d4bc6a788c08"],
+Cell[1273, 38, 2672, 65, 193, "Input",ExpressionUUID->"ead56676-13ad-4377-a2bc-d4bc6a788c08"],
 Cell[CellGroupData[{
-Cell[3936, 110, 2008, 50, 147, "Input",ExpressionUUID->"d3a5136f-f884-468d-a6ea-0fda3d884643"],
-Cell[5947, 162, 2290, 44, 472, "Output",ExpressionUUID->"122e6266-68ed-4f93-9355-2fae586f3aa5"]
-}, Open  ]]
+Cell[3970, 107, 1894, 47, 147, "Input",ExpressionUUID->"d3a5136f-f884-468d-a6ea-0fda3d884643"],
+Cell[5867, 156, 2945, 54, 580, "Output",ExpressionUUID->"c1485db2-7983-4b7d-ac83-dd23c827ea4c"]
+}, Open  ]],
+Cell[8827, 213, 934, 26, 101, "Input",ExpressionUUID->"5f4d786d-ae84-42f8-86f5-3a6c133fd78b"],
+Cell[9764, 241, 156, 3, 31, "Input",ExpressionUUID->"a6b2643c-fbfd-444a-96da-c903e107fe5e"]
 }, Open  ]]
 }
 ]

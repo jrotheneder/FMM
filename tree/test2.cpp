@@ -2,16 +2,19 @@
 #include <utility> 
 #include <stack> 
 #include <tuple> 
+#include <array> 
+#include <vector> 
+
+using namespace std;
 
 template<int d>
 struct Point {
+
     double coords[d];
     double m;
-//  Point(double coords[d]) {
-//      for(int i = 0; i < d; i++) {
-//          this->coords[i] = coords[i];
-//      }
-//  }
+
+    double& operator[](std::size_t index) { return coords[idx]; }
+    const double& operator[](std::size_t index) const { return coords[idx]; }
 };
 
 
@@ -20,9 +23,20 @@ int main(int argc, char *argv[]) {
 //  Point<6> p = {{1,2,3,4}, 6}; 
 //  std::cout << p.coords[4] << " " << p.m << std::endl;
 
-    std::stack<std::pair<int, bool>> st({{3, false}});
+//  array<Point<2>*, 10> arr {0}; 
+//  for(auto pp : arr) {
+//      cout << (pp == nullptr) << std::endl;
+//  }
+    
+    std::array<double, 5> arr;
+    arr.fill(1); 
+    for(auto x : arr) {
+        cout << x++ << " ";
+    }
+    
+    for(auto x : arr) {
+        cout << x++ << " ";
+    }
 
-    st.top().second = true;
-    std::cout << st.top().second;
 }
 
