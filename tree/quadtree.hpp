@@ -5,6 +5,7 @@
 #include <queue> 
 #include <stack> 
 #include <fstream> 
+#include <bitset> 
 #include <cassert> 
 
 #include "debugging.hpp" 
@@ -16,7 +17,7 @@ class Quadtree {
 
     struct Node {
 
-        Vector center;          // This nodes's center
+        Vector center;         // This nodes's center
         double box_length;     // This nodes's bounding box length
         std::size_t height;    // This nodes's height 
 
@@ -26,12 +27,7 @@ class Quadtree {
 
         Node(Vector center, double box_length, std::size_t height, 
             Node * parent = nullptr): center(center), box_length(box_length), 
-            height(height), parent(parent), children(), data() { // nullptr init all ptrs
-
-            for(auto childptr : children) {
-                assert(childptr == nullptr); 
-            }
-        }
+            height(height), parent(parent), children(), data() {}
 
         virtual ~Node() { 
             for(int i = 0; i < n_children; i++) { delete children[i]; }
@@ -43,38 +39,38 @@ class Quadtree {
 
         std::vector<Vector> * points;
         Leaf(Vector center, double box_length, std::size_t height, 
-            Node * parent): Node(center, box_length, height, parent), 
-            points() {}
+            Node * parent): Node(center, box_length, height, parent), points() {}
         virtual ~Leaf() { delete points; }
     };
 
 public:
 
     Node * root; 
-
-    std::array<Vector, n_children> child_center_directions = {{
-        {1,1}, {-1, 1}, {-1, -1}, {1, -1}}}; //Directions NE, NW, SW, SE
+    std::array<Vector, n_children> child_center_directions;
 
     Quadtree(std::vector<Vector> points, std::size_t s) {
 
-        // Determine tree height, bounding box lenghts and center
+        // Determine tree height, bounding box lenghts and center as well as
+        // the directions in which the child centers lie relative to the center
+        // of a box
         double height = ceil(log((double)points.size()/s)/log(n_children));
 
         Vector lower_bounds, upper_bounds;  
         std::tie(lower_bounds, upper_bounds) = getDataRange(points);
-
         auto extents = Vector{upper_bounds - lower_bounds}.data(); 
         double box_length = *std::max_element(extents.begin(), extents.end());
 
         Vector center = 0.5 * (lower_bounds + upper_bounds); 
 
+        this->child_center_directions = getChildCenterDirections();
+
         std::cout << "Quadtree height is " << height << endl;
         std::cout << "Quadtree extents are " << lower_bounds << std::endl << 
             upper_bounds << std::endl;
 
+        // Build tree: 
         this->root = new Node(center, box_length, height, nullptr); 
 
-        // Build tree: 
         std::size_t child_depth = 0; 
         std::queue<Node*> node_queue({this->root}); 
 
@@ -98,12 +94,12 @@ public:
 
                 for(int j = 0; j < n_children; j++) {
 
+                    Node * child;
                     Vector child_center = parent_center + 
                         child_box_length/2 * child_center_directions[j];
 
 //                  std::cout << ", child_center[" << j << "] = " <<  child_center
 //                      << std::endl;
-                    Node * child;
 
                     if(child_depth < height) {
                         child = new Node(child_center, child_box_length, 
@@ -116,7 +112,6 @@ public:
 
                     node_queue.push(child);
                     parent->children[j] = child; 
-
                 }
             }
         }
@@ -125,22 +120,13 @@ public:
         std::size_t n_leaves = node_queue.size(); 
         assert(n_leaves == pow(n_children, child_depth));
 
-//      std::cout << "Tree stack size is " << n_leaves << std::endl;
-
-        std::vector<Vector> ** leaf_vectors = 
-            new std::vector<Vector>*[node_queue.size()];
-
-        for(std::size_t i = 0; i < node_queue.size(); i++) {
+        std::vector<Vector> ** leaf_vectors = new std::vector<Vector>*[n_leaves];
+        for(std::size_t i = 0; i < n_leaves; i++) {
             leaf_vectors[i] = new std::vector<Vector>;
         }
 
-        const std::size_t n_boxes_per_dim =  pow(2, height); 
         for(std::size_t k = 0; k < points.size(); k++) {
-
             std::array<size_t, d> indices = getLeafBoxIndices(points[k]);
-
-            for(auto ind : indices) { assert(ind < n_boxes_per_dim); }
-
             leaf_vectors[getFlatIndex(indices)]->push_back(points[k]);
         }
 
@@ -150,19 +136,43 @@ public:
             node_queue.pop(); 
 
             std::array<size_t, d> indices = getLeafBoxIndices(leaf->center);
-
-//          std::cout << "Leaf " << k << " center = " << leaf->center 
-//              << "indices (" << i << "," << j << ")" << std::endl; 
-
             leaf->points = leaf_vectors[getFlatIndex(indices)];
-
-            for(Node * child : leaf->children) { assert(child == nullptr); }
         }
          
         delete[] leaf_vectors; 
     }
 
     ~Quadtree() { delete this->root; }
+
+    static std::array<Vector, n_children> getChildCenterDirections() {
+
+        std::array<Vector, n_children> child_center_directions;
+
+        //Use a length d bit vector to represent any of the n_children = 2^d 
+        //possible directions in which the centers of a given node's children 
+        //may lie. A 0 in the d-i-1-st position of the bit vector corresponds to 
+        //a direction vector whose i-th component is -1, a 1 in the same
+        //position to a direction vector whose i-th component is +1.
+
+        for(std::size_t i = 0; i < n_children; ++i) {
+
+            std::bitset<d> direction_bits = bitset<d>(i); 
+
+            Vector v;  
+            for(std::size_t j = 0; j < d; ++j) {
+                v[j] = direction_bits[d-j-1] ? 1 : -1;   
+            }
+
+            child_center_directions[i] = v;  
+        }
+
+        // Outputs: 
+        // 2D: {-1, -1}, {-1, 1}, {1, -1}, {1, 1}
+        // 3D: {-1, -1, -1}, {-1, -1, 1 }, {-1, 1, -1}, {-1, 1, 1}, {1, -1, -1}, 
+        //     {1, -1, 1}, {1, 1, -1}, {1, 1, 1}
+
+        return child_center_directions; 
+    }
 
     // Return tuple of (x_min, x_max, y_min, y_max, ...) of set of input vectors
     // (x, y, ...)
@@ -183,9 +193,9 @@ public:
         // Expand bounding box s.t. all points lie completely within it (and not
         // on boundaries. This simplifies the index calculations in getLeafBoxIndices().
 
-        double paddingFactor = 1E-10;
-        lower_bounds -= paddingFactor * lower_bounds;
-        upper_bounds += paddingFactor * upper_bounds;
+        double paddingFactor = 1E-5;
+        lower_bounds = lower_bounds - paddingFactor * lower_bounds;
+        upper_bounds = upper_bounds + paddingFactor * upper_bounds;
 
         return make_tuple(lower_bounds, upper_bounds);
     }
@@ -210,7 +220,8 @@ public:
         }
         
         Vector ratios = (p - lower_left_box_corner) * (1 / box_length);
-        const std::size_t n_boxes_per_dim =  pow(2, root->height); 
+
+        const std::size_t n_boxes_per_dim = pow(2, root->height); 
 
         std::array<std::size_t, d> indices; 
         for(std::size_t j = 0; j < d; j++) {
@@ -223,12 +234,12 @@ public:
     void toFile(std::string geometry_filename, std::string data_filename) const {
 
         ofstream geometry_file, data_file; 
-
         geometry_file.open(geometry_filename);
         data_file.open(data_filename);
 
         std::queue<Node*> node_queue({this->root}); 
         std::size_t n_node = 0;
+        double tree_height = this->root->height;
 
         Vector diagonal;
         diagonal.data().fill(1);
@@ -247,17 +258,15 @@ public:
             Vector center = current->center;
             Vector lower_left_box_corner = center - current->box_length/2 * diagonal; 
 
-            geometry_file << n_node << ", " 
-                << this->root->height - current->height << ", ";
+            geometry_file << n_node << ", " << tree_height - current->height;
 
-            for(auto coord : center.data()) { geometry_file << coord << ", "; }
+            for(auto coord : center.data()) { geometry_file << ", " << coord; }
             for(auto coord : lower_left_box_corner.data()) { 
-                geometry_file << coord << ", "; 
+                geometry_file << ", " << coord; 
             }
-            
             geometry_file << std::endl;
 
-            if(current->children[0] == nullptr) { // Leaf node => write data to file
+            if(current->children[0] == nullptr) { // Leaf node => write leaf data to file
 
                 Leaf * leaf = static_cast<Leaf*>(current);
                 std::vector<Vector> * points = leaf->points; 
