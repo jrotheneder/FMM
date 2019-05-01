@@ -3,13 +3,14 @@ EXT = cpp
 DEBUGFLAGS = -g -ggdb -O0
 CXXFLAGS = -Wall -std=c++11 -pedantic $(DEBUGFLAGS)
 TARGET = test
+DEPENDS = orthtree.hpp vector.hpp
 
 all: $(TARGET)
 
-$(TARGET): $(TARGET).o   #link
+$(TARGET): $(TARGET).o $(DEPENDS)  #link
 	$(CXX) $(CXXFLAGS) $(TARGET).o -o $(TARGET)
 
-$(TARGET).o: $(TARGET).cpp quadtree.hpp # compile
+$(TARGET).o: $(TARGET).cpp $(DEPENDS) # compile
 	$(CXX) -c $(CXXFLAGS) $(TARGET).$(EXT)
 
 run: all

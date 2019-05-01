@@ -1,3 +1,6 @@
+#ifndef DEBUGGING_H
+#define DEBUGGING_H
+
 #include <iostream>
 #include <string>
 #include <sstream>
@@ -20,7 +23,7 @@ template <typename T>
 void print_vec(vector<T> vec) {
     cout << "[ ";
     for(auto i : vec) {
-        cout << i << " "; 
+        cout << i << ", "; 
     }
     cout << "]\n";
 }
@@ -29,7 +32,7 @@ template <typename T>
 void print_vec(T * vec, size_t len) {
     cout << "[ ";
     for(size_t i = 0; i < len; i++) {
-        cout << vec[i] << " "; 
+        cout << vec[i] << ", "; 
     }
     cout << "]\n";
 }
@@ -62,3 +65,5 @@ void VectorToFile(T * vec, size_t len, string filename, string sep = "\n") {
 
     ofile.close();
 }
+
+#endif 
