@@ -6,16 +6,16 @@
 #include <numeric> 
 #include <cassert> 
 
-template<int d>
+template<std::size_t d>
 struct Vector {
     std::array<double, d> coords;
 
-//  Vector(std::array<double, d> coords = {}): coords(coords) {}
-//  Vector(std::initializer_list<double> il) {
+    Vector(std::array<double, d> coords = {}): coords(coords) {}
+    Vector(std::initializer_list<double> il) {
 
-//      assert(il.size() <= d);
-//      coords = std::array<double, d>{il};
-//  }
+        assert(il.size() <= d);
+        coords = std::array<double, d>{il};
+    }
 
     double& operator[](std::size_t index) { return coords[index]; }
     const double& operator[](std::size_t index) const { return coords[index]; }
@@ -55,6 +55,19 @@ struct Vector {
             rhs.data().begin(), 0.); 
     }
     double norm() const { return sqrt(this->dot(*this)); }
+};
+
+template<std::size_t d>
+struct PointCharge: Vector<d> {
+
+    double q; 
+    PointCharge(std::array<double, d> coords = {}, double q = 0): 
+        Vector<d>(coords), q(q) {}
+
+    friend std::ostream& operator<<(std::ostream& o, const PointCharge& p) {
+        o << static_cast<const Vector<d>&>(p) << ", q = " << p.q; 
+        return o; 
+    }
 };
 
 #endif

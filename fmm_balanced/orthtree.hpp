@@ -21,6 +21,7 @@ template<typename Vector, std::size_t d>
 struct Orthtree {
 
     static const int n_children = pow(2,d); 
+    const std::array<Vector, n_children> child_center_directions; //static => pain
     
 public:
     struct NodeData; 
@@ -28,7 +29,6 @@ public:
     struct Leaf; 
 
     Node * root; 
-    std::array<Vector, n_children> child_center_directions;
 
     Orthtree(std::vector<Vector> points, std::size_t s);
     ~Orthtree() { delete this->root; }
@@ -85,7 +85,8 @@ struct Orthtree<Vector, d>::Leaf: Orthtree<Vector, d>::Node {
 };
 
 template<typename Vector, std::size_t d>
-Orthtree<Vector, d>::Orthtree(std::vector<Vector> points, std::size_t s) {
+Orthtree<Vector, d>::Orthtree(std::vector<Vector> points, std::size_t s): 
+        child_center_directions(getChildCenterDirections()) {
 
     // Determine tree height, bounding box lenghts and center as well as
     // the directions in which the child centers lie relative to the center
@@ -98,8 +99,6 @@ Orthtree<Vector, d>::Orthtree(std::vector<Vector> points, std::size_t s) {
     double box_length = *std::max_element(extents.begin(), extents.end());
 
     Vector center = 0.5 * (lower_bounds + upper_bounds); 
-
-    this->child_center_directions = getChildCenterDirections();
 
 //  std::cout << "Orthtree height is " << height << endl;
 //  std::cout << "Orthtree extents are " << lower_bounds << std::endl << 
@@ -171,6 +170,71 @@ Orthtree<Vector, d>::Orthtree(std::vector<Vector> points, std::size_t s) {
     }
      
     delete[] leaf_vectors; 
+}
+
+//  void toFile(std::string geometry_filename, std::string data_filename) {
+template<typename Vector, std::size_t d>
+void Orthtree<Vector, d>::traverseBFSCore(const std::function 
+        <void(Node *)>& processNode) {
+
+    std::queue<Node*> node_queue({this->root}); 
+    while(!node_queue.empty()) {
+
+        Node * current_node = node_queue.front();
+        node_queue.pop(); 
+
+        processNode(current_node); 
+
+        for(int i = 0; i < n_children; i++) {
+            if(current_node->children[i] != nullptr)  {
+                node_queue.push(current_node->children[i]);
+            }
+        }
+    }
+}
+
+template<typename Vector, std::size_t d>
+void Orthtree<Vector, d>::toFile() {
+
+    std::string geometry_filename = "geometry.dat";
+    std::string data_filename =  "points.dat";
+
+    ofstream geometry_file, data_file; 
+    geometry_file.open(geometry_filename);
+    data_file.open(data_filename);
+
+    std::size_t n_node = 0;
+    double tree_height = this->root->height;
+
+    traverseBFSCore([&](Node * current) {
+
+        Vector center = current->center;
+        std::size_t depth = tree_height - current->height;
+        double box_length = current->box_length;
+
+        geometry_file << n_node << ", " << depth << ", " << box_length;
+        for(auto coord : center.data()) { geometry_file << ", " << coord; }
+        geometry_file << std::endl;
+
+        // For leaf nodes, write contained points to file:
+        if(current->children[0] == nullptr) { 
+
+            Leaf * leaf = static_cast<Leaf*>(current);
+            std::vector<Vector> * points = leaf->points; 
+
+            data_file << n_node;
+            for(Vector& p : *points) {
+                for(double coord : p.data()) {
+                    data_file << ", " << coord;         
+                }
+            }
+            data_file << "\n";
+        }
+        ++n_node;
+    });
+    
+    geometry_file.close();
+    data_file.close();
 }
 
 template<typename Vector, std::size_t d>  
@@ -275,69 +339,5 @@ std::size_t Orthtree<Vector, d>::getFlatIndex(
     return flat_index;
 }
 
-//  void toFile(std::string geometry_filename, std::string data_filename) {
-template<typename Vector, std::size_t d>
-void Orthtree<Vector, d>::traverseBFSCore(
-        const std::function <void(Node *)>& processNode) {
-
-    std::queue<Node*> node_queue({this->root}); 
-    while(!node_queue.empty()) {
-
-        Node * current_node = node_queue.front();
-        node_queue.pop(); 
-
-        for(int i = 0; i < n_children; i++) {
-            if(current_node->children[i] != nullptr)  {
-                node_queue.push(current_node->children[i]);
-            }
-        }
-
-        processNode(current_node); 
-    }
-}
-
-template<typename Vector, std::size_t d>
-void Orthtree<Vector, d>::toFile() {
-
-    std::string geometry_filename = "geometry.dat";
-    std::string data_filename =  "points.dat";
-
-    ofstream geometry_file, data_file; 
-    geometry_file.open(geometry_filename);
-    data_file.open(data_filename);
-
-    std::size_t n_node = 0;
-    double tree_height = this->root->height;
-
-    traverseBFSCore([&](Node * current) {
-
-        Vector center = current->center;
-        std::size_t depth = tree_height - current->height;
-        double box_length = current->box_length;
-
-        geometry_file << n_node << ", " << depth << ", " << box_length;
-        for(auto coord : center.data()) { geometry_file << ", " << coord; }
-        geometry_file << std::endl;
-
-        // For leaf nodes, write contained points to file:
-        if(current->children[0] == nullptr) { 
-
-            Leaf * leaf = static_cast<Leaf*>(current);
-            std::vector<Vector> * points = leaf->points; 
-
-            data_file << n_node;
-            for(Vector& p : *points) {
-                for(double coord : p.data()) {
-                    data_file << ", " << coord;         
-                }
-            }
-            data_file << "\n";
-        }
-        ++n_node;
-    });
-    
-    geometry_file.close();
-    data_file.close();
-}
 
 #endif

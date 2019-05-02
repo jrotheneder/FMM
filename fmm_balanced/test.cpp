@@ -27,16 +27,14 @@ int main(int argc, char *argv[]) {
         pts.push_back(Vector<d>(v)); 
     }
 
-//  print_vec(pts); 
-    
-    FmmTree<Vector<d>, d>q(pts, 100);
+    FmmTree<Vector<d>, PointCharge<d>, d>q(pts, 100, 1E-5);
     std::cout << "Orthtree height is " << q.getHeight() << ", centered at " <<
         q.getCenter() << std::endl;
     q.toFile();
 
-    q.traverseBFSCore([&q](const FmmTree<Vector<d>, d>::Node * node) {
-            std::cout << q.getHeight() - node->height << ", " 
-            << node->center << std::endl; }); 
+//  q.traverseBFSCore([&q](const FmmTree<Vector<d>, d>::Node * node) {
+//          std::cout << q.getHeight() - node->height << ", " 
+//          << node->center << std::endl; }); 
 
 
 //  auto dirs =  Orthtree<Vector<3>, bool, 3>::getChildCenterDirections();
