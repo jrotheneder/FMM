@@ -29,6 +29,11 @@ public:
 
     static void computeNodeNeighbourhood(FmmNode* node); 
     static std::tuple<Vector, Vector> getDataRange(const std::vector<Source> & sources);
+
+    void distributeSources(std::queue<FmmNode*>& leaf_queue, 
+            const std::vector<Source>& sources);
+
+    ~BalancedFmmTree() { delete this->root; }
 };
 
 template<typename Vector, typename Source, std::size_t d>
@@ -53,11 +58,10 @@ BalancedFmmTree<Vector, Source, d>::BalancedFmmTree(std::vector<Source> sources,
 
     // Build tree: 
     this->root = new FmmNode(center, box_length, 0, nullptr); 
-
-//  std::queue<FmmNode*> node_queue({static_cast<FmmNode*>(this->root)}); 
     std::queue<FmmNode*> leaf_queue; 
 
-    traverseBFSCore([this, &leaf_queue](FmmNode * node) {
+    // TODO: make lambda a function? 
+    traverseBFSCore([this, &leaf_queue](FmmNode * node) -> void {
 
         Vector parent_center = node->center;
         double child_box_length = node->box_length/2;
@@ -91,138 +95,20 @@ BalancedFmmTree<Vector, Source, d>::BalancedFmmTree(std::vector<Source> sources,
         }
     }); 
 
-/*  while(child_depth < this->height) {
-
-        std::size_t n_nodes = node_queue.size(); 
-        assert(n_nodes == pow(AOT::n_children, child_depth));
-        
-        ++child_depth;
-
-        for(std::size_t i = 0; i < n_nodes; i++) {
-
-            FmmNode* parent = node_queue.front();
-            node_queue.pop(); 
-
-            Vector parent_center = parent->center;
-            double child_box_length = parent->box_length/2;
-
-            for(int j = 0; j < AOT::n_children; j++) {
-
-                FmmNode* child;
-                Vector child_center = parent_center + 
-                    child_box_length/2 * AOT::child_center_directions[j];
-
-                if(child_depth < this->height) {
-                    child = new FmmNode(child_center, child_box_length, 
-                                        child_depth, parent); 
-                }
-                else { // Treat leaves seperately
-                    child = new FmmLeaf(child_center, child_box_length, 
-                                        child_depth, parent); 
-                }
-
-                node_queue.push(child);
-                parent->children[j] = child; 
-            }
-        }
-    }
-*/
     // Distribute sources to leaves
-    std::size_t n_leaves = leaf_queue.size(); 
-    assert(n_leaves == pow(AOT::n_children, this->height));
+    distributeSources(leaf_queue, sources); 
 
-    std::vector<Source> ** leaf_vectors = new std::vector<Source>*[n_leaves];
-    for(std::size_t i = 0; i < n_leaves; i++) {
-        leaf_vectors[i] = new std::vector<Source>;
-    }
-
-    for(std::size_t k = 0; k < sources.size(); k++) {
-        std::array<size_t, d> indices = 
-            Super::getLeafBoxIndices(sources[k].position);
-        assert(Super::getFlatIndex(indices) < n_leaves); 
-        leaf_vectors[Super::getFlatIndex(indices)]->push_back(sources[k]);
-    }
-
-    for(std::size_t k = 0; k < n_leaves; k++) {
-
-        FmmLeaf* leaf = static_cast<FmmLeaf*>(leaf_queue.front());
-        leaf_queue.pop(); 
-
-        std::array<size_t, d> indices = Super::getLeafBoxIndices(leaf->center);
-        leaf->sources = leaf_vectors[Super::getFlatIndex(indices)]; 
-    }
-     
-    delete[] leaf_vectors; 
-
+    traverseBFSCore(
+        [this](FmmNode* node) -> void { this->computeNodeNeighbourhood(node); }
+    ); 
 }
-
-
-
-/* 
-template<typename Vector, typename Source, std::size_t d>
-BalancedFmmTree<Vector, Source, d>::BalancedFmmTree(std::vector<Vector> points, 
-        std::size_t s, double eps): Super(points, s) { 
-
-    // Theoretically we could skip the call to Super() here and construct
-    // everything in one. TODO: consider this NOW
-
-    if(d > 3lu) { 
-        throw std::runtime_error("Determining near neighbours from "
-            "euclidean center seperation is only valid for d <= 3 "
-            "dimensions, modify implementation."); 
-    }
-
-    // Maximal distance to near neighbours, in units of box_length and with 
-    // padding to avoid numerical issues
-    const double max_neighbour_distance = 1.1 * sqrt(d); 
-
-    Super::traverseBFSCore([max_neighbour_distance](typename Super::Node * node) {
-
-        FmmData* fmm_data = new FmmData();
-        node->data = fmm_data; 
-
-        auto& interaction_list = fmm_data->interaction_list;
-        auto& near_neighbours = fmm_data->near_neighbours;
-
-        Node* parent = node->parent;
-        Vector& center = node->center;
-
-        double box_max_neighbour_distance = max_neighbour_distance 
-            * node->box_length;
-
-        //Node is not root => sort children of parent's NNs (including
-        //parent itself) into NNs of node and interaction list of node
-        if(parent) { 
-            auto& parent_near_neighbours = 
-                static_cast<FmmData*>(parent->data)->near_neighbours; 
-
-            for(auto parent_nn : parent_near_neighbours) {
-                for(auto child : parent_nn->children) {
-                    double distance = (center - child->center).norm();  
-                    if(distance < box_max_neighbour_distance) { // near neighbour
-                        near_neighbours.push_back(child);  
-                    }
-                    else {
-                        interaction_list.push_back(child); 
-                        assert(distance > 1.99 * node->box_length); 
-                    }
-                }
-            }
-        } 
-        else { near_neighbours.push_back(node); }// Root is root's only NN 
-
-    }); 
-}
-*/
 
 template<typename Vector, typename Source, std::size_t d>
 void BalancedFmmTree<Vector, Source, d>::traverseBFSCore(
-        const std::function <void(FmmNode *)>& processNode) {
+        const std::function <void(FmmNode*)>& processNode) {
 
-    const std::function <void(BaseNode *)>& processNodeAdaptor = 
-        [&processNode](BaseNode* node) { 
-            processNode(static_cast<FmmNode*>(node)); 
-        }; 
+    const std::function <void(BaseNode*)>& processNodeAdaptor = [&processNode]
+        (BaseNode* node) { processNode(static_cast<FmmNode*>(node)); }; 
 
     AOT::traverseBFSCore(processNodeAdaptor); 
 }
@@ -364,6 +250,37 @@ std::tuple<Vector, Vector> BalancedFmmTree<Vector, Source, d>::getDataRange(
     upper_bounds = upper_bounds + paddingFactor * upper_bounds;
 
     return make_tuple(lower_bounds, upper_bounds);
+}
+
+template<typename Vector, typename Source, std::size_t d>
+void BalancedFmmTree<Vector, Source, d>::distributeSources(
+        std::queue<FmmNode*>& leaf_queue, const std::vector<Source>& sources) {
+     
+    std::size_t n_leaves = leaf_queue.size(); 
+    assert(n_leaves == pow(AOT::n_children, this->height));
+
+    std::vector<Source> ** leaf_vectors = new std::vector<Source>*[n_leaves];
+    for(std::size_t i = 0; i < n_leaves; i++) {
+        leaf_vectors[i] = new std::vector<Source>;
+    }
+
+    for(std::size_t k = 0; k < sources.size(); k++) {
+        std::array<size_t, d> indices = 
+            Super::getLeafBoxIndices(sources[k].position);
+        assert(Super::getFlatIndex(indices) < n_leaves); 
+        leaf_vectors[Super::getFlatIndex(indices)]->push_back(sources[k]);
+    }
+
+    for(std::size_t k = 0; k < n_leaves; k++) {
+
+        FmmLeaf* leaf = static_cast<FmmLeaf*>(leaf_queue.front());
+        leaf_queue.pop(); 
+
+        std::array<size_t, d> indices = Super::getLeafBoxIndices(leaf->center);
+        leaf->sources = leaf_vectors[Super::getFlatIndex(indices)]; 
+    }
+     
+    delete[] leaf_vectors; 
 }
 
 } // namespace fmm
