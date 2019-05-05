@@ -57,11 +57,15 @@ struct Vector {
 };
 
 template<std::size_t d>
-struct PointCharge: Vector<d> {
+struct PointCharge {
 
+    Vector<d> position; 
     double q; 
-    PointCharge(std::array<double, d> coords = {}, double q = 0): 
-        Vector<d>(coords), q(q) {}
+
+    PointCharge(Vector<d> position = {}, double q = 0): position(position), q(q) {}
+    PointCharge(std::array<double, d> position, double q): position(position), q(q) {}
+
+    double sourceStrength() const { return q; }
 
     friend std::ostream& operator<<(std::ostream& o, const PointCharge& p) {
         o << static_cast<const Vector<d>&>(p) << ", q = " << p.q; 

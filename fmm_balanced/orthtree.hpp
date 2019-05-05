@@ -18,12 +18,17 @@
 #include "debugging.hpp" 
 
 template<typename Vector, std::size_t d>
-struct Orthtree {
+class AbstractOrthtree {
+};
 
+
+template<typename Vector, std::size_t d>
+class Orthtree {
+
+public:
     static const int n_children = pow(2,d); 
     const std::array<Vector, n_children> child_center_directions; //static => pain
     
-public:
     struct NodeData; 
     struct Node; 
     struct Leaf; 
@@ -338,6 +343,5 @@ std::size_t Orthtree<Vector, d>::getFlatIndex(
 
     return flat_index;
 }
-
 
 #endif
