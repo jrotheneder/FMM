@@ -51,7 +51,7 @@ int main(int argc, char *argv[]) {
 
     fmm::MultipoleExpansion<Vector<d>, PointCharge<d>, d> me(center, order, sources); 
     std::vector<fmm::MultipoleExpansion<Vector<d>, PointCharge<d>, d>*> vme{&me};
-    fmm::MultipoleExpansion<Vector<d>, PointCharge<d>, d> se(shifted_center, order, vme); 
+    fmm::MultipoleExpansion<Vector<d>, PointCharge<d>, d> se(shifted_center, vme); 
 
     cout << "Order is " << order << endl;
     cout << me.evaluatePotential(eval_point) << endl; 

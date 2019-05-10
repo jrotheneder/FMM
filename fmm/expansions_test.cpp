@@ -42,6 +42,7 @@ int main(int argc, char *argv[]) {
     const Vec center2 = 2 * extent * unit_1;  // Multipole expansion 2
     const Vec se_center = 2 * extent * unit_2;  // center of shifted multipole expansion
     const Vec le_center{}; // Origin, center of local expansion
+    const Vec sle_center = -0.5 * extent * ones; // Center of shifted local expansion
 
     const Vec me_eval_point(6 * extent); 
     const Vec le_eval_point = extent/2 * ones; 
@@ -101,38 +102,62 @@ int main(int argc, char *argv[]) {
 
     // ... and multipole expansion by shift: 
     std::vector<ME*> vme{&me1, &me2};
-    ME se(se_center, order, vme); 
+    ME se(se_center, vme); 
 
     // Set up local expansions from multipole expansions: 
-    LE le(le_center, order, vme); 
+    LE le(le_center, vme); 
+    // And a shifted local expansion: 
+    std::vector<LE*> vle{&le};
+    LE sle(sle_center, vle); 
 
     double me_pot_error = abs(me1.evaluatePotential(me_eval_point) 
         + me2.evaluatePotential(me_eval_point) - me_pot_ref); 
     double se_pot_error = abs(se.evaluatePotential(me_eval_point) - me_pot_ref); 
     double le_pot_error = abs(le.evaluatePotential(le_eval_point) - le_pot_ref); 
+    double sle_pot_error = abs(sle.evaluatePotential(le_eval_point) - le_pot_ref); 
 
     double me_force_error = (me1.evaluateForcefield(me_eval_point) 
         + me2.evaluateForcefield(me_eval_point) - me_force_ref).norm(); 
     double se_force_error = (se.evaluateForcefield(me_eval_point) - me_force_ref).norm(); 
     double le_force_error = (le.evaluateForcefield(le_eval_point) - le_force_ref).norm(); 
+    double sle_force_error = (sle.evaluateForcefield(le_eval_point) 
+            - le_force_ref).norm(); 
 
     cout << "Order is " << order << endl;
     cout << "Potential errors:" << endl 
         << "Multipole: " << me_pot_error << endl 
         << "Multipole (shifted): " << se_pot_error << endl 
-        << "Local:" << le_pot_error << endl << endl
-        << "Force errors: " << endl 
+        << "Local:" << le_pot_error << endl
+        << "Local (shifted):" << sle_pot_error << endl << endl
+        << "Force errors: " << endl
         << "Multipole: " << me_force_error << endl 
         << "Multipole (shifted): " << se_force_error << endl
-        << "Local: " << le_force_error << endl; 
+        << "Local: " << le_force_error << endl
+        << "Local (shifted): " << sle_force_error << endl; 
+
+//  cout << "diff local vs local (shifted) = " << 
+//      abs(le.evaluatePotential(le_eval_point) 
+//      - sle.evaluatePotential(le_eval_point)) 
+//      << endl;
+
+//  cout << "Coeff le: "; 
+//  for(auto c : le.coefficients) { 
+//      cout << " " << c.real() << " + " << c.imag() << "i\n"; 
+//  }
+//  cout << endl << "Coeff sle: "; 
+//  for(auto c : sle.coefficients) { 
+//      cout << " " << c.real() << " + " << c.imag() << "i\n"; 
+//  }
 
     bool failure = 
         me_pot_error >= eps 
         || se_pot_error >= eps 
         || le_pot_error >= eps 
+        || sle_pot_error >= eps 
         || me_force_error >= eps 
         || se_force_error >= eps
-        || le_force_error >= eps; 
+        || le_force_error >= eps
+        || sle_force_error >= eps; 
 
     if(failure) { std::cout << "Test failed in expansions_test.cpp" << std::endl; }
 

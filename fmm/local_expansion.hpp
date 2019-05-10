@@ -13,21 +13,21 @@ struct LocalExpansion<Vector, Source, d, typename std::enable_if<d==2>::type> {
 
     using Complex = std::complex<double>;
     using ME = MultipoleExpansion<Vector, Source, d>;
+    using LE = LocalExpansion;
 
     std::vector<Complex> coefficients; // Local expansion coefficients
     Complex center; // Center of the expansion
 
     LocalExpansion() {}
-    LocalExpansion(const Vector& center_vec, std::size_t order, 
-            std::vector<ME*> me_expansions): coefficients(order + 1), 
+    LocalExpansion(const Vector& center_vec, std::vector<ME*> expansions):
+            coefficients(expansions[0]->coefficients.size()+1), 
             center({center_vec[0], center_vec[1]}) {
-
+        
+        std::size_t order = coefficients.size();
 
         // Convert the supplied multipiole expansions to a local expansion
-        for(ME * me : me_expansions) { 
+        for(ME* me : expansions) { 
             
-            assert(order == me->coefficients.size());
-
             Complex a_0 = me->Q; // 0-th coeff of multipole exp.
             Complex z_0 = me->center - this->center; // ME center rel. to this->center
             
@@ -55,6 +55,25 @@ struct LocalExpansion<Vector, Source, d, typename std::enable_if<d==2>::type> {
             }
         }
     }
+
+    LocalExpansion(const Vector& center_vec, std::vector<LE*> expansions): 
+            coefficients(expansions[0]->coefficients.size()), 
+            center({center_vec[0], center_vec[1]}) {
+
+        for(LE* le : expansions) {
+            
+            Complex shift_vec = le->center - this->center; 
+            std::vector<Complex> shifted_coefficients = le->shift(shift_vec); 
+
+            std::transform (coefficients.begin(), coefficients.end(), 
+                shifted_coefficients.begin(), coefficients.begin(), 
+                std::plus<Complex>()
+            );
+        }
+    }
+
+    //TODO: Need a way to integrate multipole exps in interlist into an
+    //existing le
 
     // Shift is the vector (complex number) from the new center to the old
     // center.

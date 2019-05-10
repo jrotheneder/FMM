@@ -24,6 +24,7 @@ template<typename Vector, typename Source, std::size_t d>
 struct MultipoleExpansion<Vector, Source, d, typename std::enable_if<d==2>::type> {
 
     using Complex = std::complex<double>;
+    using ME = MultipoleExpansion; 
 
     std::vector<Complex> coefficients; // ME coefficients
     Complex center; // Center of the expansion
@@ -49,21 +50,21 @@ struct MultipoleExpansion<Vector, Source, d, typename std::enable_if<d==2>::type
     }
 
     // Construct expansion from other expansions by shifting
-    MultipoleExpansion(const Vector& center_vec, std::size_t order,
-            std::vector<MultipoleExpansion*>& expansions): coefficients(order), 
+    MultipoleExpansion(const Vector& center_vec, std::vector<ME*>& expansions): 
+            coefficients(expansions[0]->coefficients.size()), 
             center({center_vec[0], center_vec[1]}), Q(0){
         
-        for(MultipoleExpansion * me : expansions) {
+        for(ME* me : expansions) {
             Q += me->Q;     
+
+            assert(me->coefficients.size() > 0);  // TODO remove in a bit
         
             Complex shift_vec = me->center - this->center; //TODO: check this!!
-            std::vector<Complex> me_shifted_coefficients 
+            std::vector<Complex> shifted_coefficients 
                 = me->shift(shift_vec);
 
-            assert(me_shifted_coefficients.size() == order); 
-
             std::transform (coefficients.begin(), coefficients.end(), 
-                me_shifted_coefficients.begin(), coefficients.begin(), 
+                shifted_coefficients.begin(), coefficients.begin(), 
                 std::plus<Complex>()
             );
         }
