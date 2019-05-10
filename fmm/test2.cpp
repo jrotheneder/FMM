@@ -19,12 +19,23 @@ int main(int argc, char *argv[]) {
      
     size_t N = 5000;
     const size_t d = 2;
+    const double eps = 1E-5; 
+    const size_t order = ceil(log(1/eps) / log(2)); 
+    const size_t seed = 42; 
+    srand(seed); 
+
     vector<PointCharge<d>> sources;
+    Vector<d> center{}; // Origin 
+    double extent = 32;
+
+    Vector<d> eval_point; eval_point.fill(96); 
+    Vector<d> shift; shift.fill(8);
+    const Vector<d> shifted_center = center + shift;
 
     for(size_t i = 0; i < N; i++) {
         Vector<d> v;      
         for(size_t j = 0; j < d; ++j) {
-            v[j] =  64 * ((double) rand() / (RAND_MAX));
+            v[j] =  extent * ((double) rand() / (RAND_MAX)) - extent/2;
         }
         double q = (double) rand() / (RAND_MAX) * (i % 2 ? 1 : -1);
         PointCharge<d> src {v, q};
@@ -35,17 +46,19 @@ int main(int argc, char *argv[]) {
 //  PointOrthtree<Vector<d>, d>q(pts, 100);
     BalancedFmmTree<Vector<d>, PointCharge<d>, d>q(sources, 100, 1E-5);
     cout << "Orthtree height is " << q.getHeight() << ", centered at " <<
-        q.getCenter() << endl;
+        q.getCenter() << " with parent box size = " << q.getBoxLength() <<  endl;
     q.toFile();
 
-    Vector<2> center = q.getCenter();
-    fmm::MultipoleExpansion<Vector<2>, PointCharge<2>, 2> me(sources, center, 6); 
+    fmm::MultipoleExpansion<Vector<d>, PointCharge<d>, d> me(center, order, sources); 
+    std::vector<fmm::MultipoleExpansion<Vector<d>, PointCharge<d>, d>*> vme{&me};
+    fmm::MultipoleExpansion<Vector<d>, PointCharge<d>, d> se(shifted_center, order, vme); 
 
-    Vector<2> eval_point{{96, 96}};
+    cout << "Order is " << order << endl;
     cout << me.evaluatePotential(eval_point) << endl; 
-    
-    Vector<2> f = me.evaluateForcefield(eval_point);
-    cout << f << endl;
+    cout <<  me.evaluateForcefield(eval_point) << endl;
+
+    cout << se.evaluatePotential(eval_point) << endl; 
+    cout << se.evaluateForcefield(eval_point) << endl;
 
     return 0;
 

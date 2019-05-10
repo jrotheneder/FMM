@@ -11,6 +11,7 @@ struct Vector {
     std::array<double, d> coords;
 
     Vector(std::array<double, d> coords = {}): coords(coords) {}
+    Vector(double fill_value): coords() { this->fill(fill_value); }
 
     double& operator[](std::size_t index) { return coords[index]; }
     const double& operator[](std::size_t index) const { return coords[index]; }
@@ -31,8 +32,8 @@ struct Vector {
 
     Vector operator-() const { return -1 * *this; }
     Vector operator-(const Vector& rhs) const { return *this + (-rhs); }
-//  Vector& operator+=(const Vector& rhs) { return *this = *this + rhs; }
-//  Vector& operator-=(const Vector& rhs) { return *this = *this - rhs; }
+    Vector& operator+=(const Vector& rhs) { return *this = *this + rhs; }
+    Vector& operator-=(const Vector& rhs) { return *this = *this - rhs; }
 
     friend Vector operator*(const double s, const Vector& rhs) { return rhs * s; }
     friend std::ostream& operator<<(std::ostream& o, const Vector& p) {

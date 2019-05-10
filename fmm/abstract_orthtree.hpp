@@ -36,6 +36,7 @@ public:
 
     std::size_t getHeight() const { return this->height; }
     Vector getCenter() const { return this->root->center; }
+    double getBoxLength() const { return this->root->box_length; }
 
     virtual void toFile() = 0;
 

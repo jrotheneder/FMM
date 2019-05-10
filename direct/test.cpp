@@ -4,7 +4,7 @@
 #include <cstdlib> 
 #include <cmath> 
 
-#include "direct.hpp" 
+#include "interaction.hpp" 
 #include "debugging.hpp" 
 
 using namespace std;

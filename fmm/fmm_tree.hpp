@@ -1,6 +1,8 @@
 #ifndef FMM_TREE_H
 #define FMM_TREE_H
 
+#include <iomanip> 
+
 #include "balanced_orthtree.hpp"
 #include "multipole_expansion.hpp"
 #include "local_expansion.hpp"
@@ -124,7 +126,19 @@ BalancedFmmTree<Vector, Source, d>::BalancedFmmTree(std::vector<Source>& sources
 /* N log N variant for now */
 template<typename Vector, typename Source, std::size_t d>
 std::vector<double> BalancedFmmTree<Vector, Source, d>::computePotentials() {
+
+    // N log N Algorithm: Build multipole expansions at every level:     
+        // => Need reverse BFS order (leaves first, root last) traversal
+        // Maybe with BFS + stack? 
     
+    // Build multipole expansions from sources at leaves
+
+    // Build multipole expansions via shifts from children at nodes
+
+    // Traverse tree from top; calculate for every source in a box b the influence
+    // of the multipole expansions of the boxes in b's interaction list 
+        // => Need to access all sources at every level in the same order 
+
     std::vector<double> potentials(5);
     return {}; 
 }
@@ -160,6 +174,8 @@ void BalancedFmmTree<Vector, Source, d>::toFile() {
     neighbours_file.open(neighbours_filename);
     interaction_file.open(interaction_filename);
 
+    
+
     std::size_t n_node = 0;
 
     traverseBFSCore([&](FmmNode* node) {
@@ -179,7 +195,10 @@ void BalancedFmmTree<Vector, Source, d>::toFile() {
             FmmLeaf *leaf = static_cast<FmmLeaf*>(node);
             std::vector<Source> &sources = *leaf->sources; 
 
-            data_file << n_node;
+            data_file << n_node 
+                << std::setprecision(std::numeric_limits<double>::digits10) 
+                << std::scientific;
+
             for(const Source &s : sources) {
                 for(double coord : s.position.data()) {
                     data_file << ", " << coord;         

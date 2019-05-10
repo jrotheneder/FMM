@@ -1,86 +1,52 @@
-#include <vector> 
+#include <algorithm> 
 #include <functional> 
 
-// Generic class for computing pairwise interactions between N sources,
-// e.g. potentials or forces in a system of charges in electrostatics
-template<typename SourceType, typename InteractionType>
-class Interaction {
+namespace direct {
 
-public:
-    const std::size_t N; 
-    const std::vector<SourceType>& sources; 
-    std::vector<InteractionType> interactions; 
-    const std::function <InteractionType (const SourceType&, 
-        const SourceType&)> interactionFunction;
-    
-    Interaction(const std::vector<SourceType>& sources, const std::function 
-        <InteractionType (const SourceType&, const SourceType&)>& 
-        interactionFunction): N(sources.size()), sources(sources), 
-        interactions(std::vector<InteractionType>(N)),
-        interactionFunction(interactionFunction) {
-    }  
+template<typename Vector, typename Source, std::size_t d>
+double Electrostatic_Potential(const Source& src, const Vector& evaluation_point) {
 
-    // Computes interactions with an arbitrary (i.e. nonsymmetric) kernel,
-    // ignores self-interaction. Relies on InteractionType being default 
-    // initialized to 'zero'
-    void Compute() {
+    double r = (src.position - evaluation_point).norm(); 
 
-        for(std::size_t i = 0; i < N; i++) {
+    if constexpr(d == 2) { return -src.q * log(r); }
+    else { return src.q / r; }
+}
 
-            SourceType src = sources[i];
-            InteractionType ia = InteractionType(); // Default must be 'zero' el.
+template<typename Vector, typename Source, std::size_t d>
+double Gravitational_Potential(const Source& src, const Vector& evaluation_point) {
+    return -Electrostatic_Potential(src, evaluation_point); 
+}
 
-            for(std::size_t j = 0; j < i; j++) {
-                ia += interactionFunction(src, sources[j]);
-            }
-            for(std::size_t j = i+1; j < N; j++) {
-                ia += interactionFunction(src, sources[j]);
-            }
+template<typename Vector, typename Source, std::size_t d>
+Vector Electrostatic_Force(const Source& src, const Vector& evaluation_point) {
 
-            interactions[i] = ia;
+    Vector diff = evaluation_point - src.position; 
+    double r = diff.norm(); 
+
+    if constexpr(d == 2) { return src.q / (r*r) * diff; }
+    else { return src.q / (r*r*r) * diff; }
+}
+
+template<typename Vector, typename Source, std::size_t d>
+Vector Gravitational_Force(const Source& src, const Vector& evaluation_point) {
+    return - Electrostatic_Force(src, evaluation_point); 
+}
+
+// InteractionResult can be e.g. double, Vector for potentials and forces
+template<typename Vector, typename Source, typename InteractionResult> 
+InteractionResult evaluateInteraction(std::vector<Source>& sources, 
+        const Vector& evaluation_point, std::function <InteractionResult 
+        (const Source&, const Vector&)> interactionFunction) {
+
+    InteractionResult res{}; // Default init must be '0' element of result type
+    res = std::accumulate(sources.begin(), sources.end(), res, 
+        [&interactionFunction, &evaluation_point](InteractionResult& accumulant, 
+        Source& src) -> InteractionResult { 
+            return accumulant + interactionFunction(src, evaluation_point); 
         }
-    }
+    );
 
-    // Computes interactions with a symmetric kernel, i.e. if 
-    // interactionFunction(a,b) == interactionFunction(b,a) for all a,b. 
-    // Ignores self-interaction, relies on InteractionType being default 
-    // initialized to 'zero'
-    void ComputeSymmetric() {
+    return res; 
+}
 
-        for(std::size_t i = 0; i < N; i++) {
-
-            SourceType src = sources[i];
-            InteractionType ia = InteractionType(); // Default must be 'zero' el.
-
-            for(std::size_t j = 0; j < i; j++) {
-                InteractionType new_ia = interactionFunction(src, sources[j]);
-                ia += new_ia;
-                interactions[j] += new_ia;
-            }
-
-            interactions[i] = ia;
-        }
-    }
-
-    // Computes interactions with an antisymmetric kernel, i.e. if 
-    // interactionFunction(a,b) == -interactionFunction(b,a) for all a,b. 
-    // Ignores self-interaction, relies on InteractionType being default 
-    // initialized to 'zero'
-    void ComputeAntisymmetric() {
-
-        for(std::size_t i = 0; i < N; i++) {
-
-            SourceType src = sources[i];
-            InteractionType ia = InteractionType(); // Default must be 'zero' el.
-
-            for(std::size_t j = 0; j < i; j++) {
-                InteractionType new_ia = interactionFunction(src, sources[j]);
-                ia += new_ia;
-                interactions[j] -= new_ia;
-            }
-
-            interactions[i] = ia;
-        }
-    }
-
-};
+} //namespace direct

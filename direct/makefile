@@ -9,7 +9,7 @@ all: $(TARGET)
 $(TARGET): $(TARGET).o   #link
 	$(CXX) $(CXXFLAGS) $(TARGET).o -o $(TARGET)
 
-$(TARGET).o: $(TARGET).cpp direct.hpp # compile
+$(TARGET).o: $(TARGET).cpp interaction.hpp # compile
 	$(CXX) -c $(CXXFLAGS) $(TARGET).$(EXT)
 
 run: all
