@@ -62,31 +62,19 @@ struct LocalExpansion<Vector, Source, d, typename std::enable_if<d==2>::type> {
         }
     }
 
-    LocalExpansion(const Vector& center_vec, std::vector<LE*> expansions): 
+    LocalExpansion(const Vector& center_vec, LocalExpansion& incoming): 
             center({center_vec[0], center_vec[1]}) {
         
-        assert(expansions.size() > 0); 
+        assert(incoming.coefficients.size() > 0); 
 
-        std::size_t order = expansions[0]->coefficients.size();
-        coefficients.resize(order); 
+        Complex shift_vec = incoming.center - this->center; 
+        this->coefficients = incoming.shift(shift_vec); 
 
-        for(LE* le : expansions) {
-            
-            Complex shift_vec = le->center - this->center; 
-            std::vector<Complex> shifted_coefficients = le->shift(shift_vec); 
-
-            std::transform (
-                coefficients.begin(), coefficients.end(), 
-                shifted_coefficients.begin(), coefficients.begin(), std::plus<Complex>()
-            );
-        }
     }
 
-    //TODO: Need a way to integrate multipole exps in interlist into an
-    //existing le
     LocalExpansion& operator+=(const LocalExpansion& rhs) {
 
-        assert(this->coefficients.size() == rhs.coefficients.size());
+        assert(coefficients.size() == rhs.coefficients.size());
 
         std::transform (
             coefficients.begin(), coefficients.end(), rhs.coefficients.begin(), 

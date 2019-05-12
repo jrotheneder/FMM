@@ -8,44 +8,48 @@
 #include <limits> 
 #include <vector> 
 #include <fstream> 
+#include <chrono> 
 
-using namespace std;
+template<typename ChronoDuration>
+double chrono_duration(ChronoDuration d) {
+    return std::chrono::duration_cast<std::chrono::microseconds>(d).count()/1E6;  
+}
 
-string time_proc_stamp(size_t iteration, size_t procId) {
+std::string time_proc_stamp(size_t iteration, size_t procId) {
 
-    stringstream s;
-    s << "[" << setw(4) << setfill('0') << iteration << "][p" <<
+    std::stringstream s;
+    s << "[" << std::setw(4) << std::setfill('0') << iteration << "][p" <<
         procId << "]: ";
     return s.str();
 }
 
 template <typename T>
-void print_iterable(T obj) {
-    cout << "[ ";
+void printIterable(T obj, std::string sep = ",") {
+    std::cout << "[ ";
     for(auto& i : obj) {
-        cout << i << ", "; 
+        std::cout << i << " " << sep; 
     }
-    cout << "]\n";
+    std::cout << "]\n";
 }
 
 template <typename T>
-void print_vec(T * vec, size_t len) {
-    cout << "[ ";
+void printVec(T& vec, size_t len, std::string sep = ",") {
+    std::cout << "[ ";
     for(size_t i = 0; i < len; i++) {
-        cout << vec[i] << ", "; 
+        std::cout << vec[i] << " " << sep; 
     }
-    cout << "]\n";
+    std::cout << "]\n";
 }
 
 template <typename T>
-void VectorToFile(std::vector<T> vec, string filename, string sep = "\n") {
+void iterableToFile(T& t, std::string filename, std::string sep = "\n") {
 
-    ofstream ofile; 
+    std::ofstream ofile; 
     ofile.open(filename);
     ofile << std::setprecision(std::numeric_limits<double>::digits10) << std::scientific;
 
-    for(size_t i = 0; i < vec.size(); ++i) {
-        ofile << vec[i] << sep;
+    for(auto el : t) {
+        ofile << el << sep;
     }
 
     ofile.close();
@@ -53,11 +57,12 @@ void VectorToFile(std::vector<T> vec, string filename, string sep = "\n") {
 
 
 template <typename T>
-void VectorToFile(T * vec, size_t len, string filename, string sep = "\n") {
+void vecToFile(T& vec, size_t len, std::string filename, std::string sep = "\n") {
 
-    ofstream ofile; 
+    std::ofstream ofile; 
     ofile.open(filename);
-    ofile << std::setprecision(std::numeric_limits<double>::digits10) << std::scientific;
+    ofile << std::setprecision(std::numeric_limits<double>::digits10) 
+        << std::scientific;
 
     for(size_t i = 0; i < len; ++i) {
         ofile << vec[i] << sep;

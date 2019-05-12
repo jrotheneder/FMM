@@ -11,11 +11,11 @@
 
 #include "multipole_expansion.hpp" 
 #include "local_expansion.hpp" 
-#include "../direct/direct.hpp" 
+#include "direct.hpp" 
 
 using namespace std;
 using namespace fmm; 
-using namespace direct; 
+using namespace fmm::fields; 
 
 int main(int argc, char *argv[]) {
 
@@ -27,8 +27,8 @@ int main(int argc, char *argv[]) {
     using LE = fmm::LocalExpansion<Vec, Src, d>;
 
     // Slightly awkward function aliasing: 
-    constexpr auto EPot = Electrostatic_Potential<Vec, Src, d>;
-    constexpr auto EFrc = Electrostatic_Force<Vec, Src, d>;
+    constexpr auto EPot = electrostaticPotential<Vec, Src, d>;
+    constexpr auto EFrc = electrostaticForce<Vec, Src, d>;
      
     const size_t N = 5000;
     const double extent = 16;
@@ -102,9 +102,9 @@ int main(int argc, char *argv[]) {
 
     // Set up local expansions from multipole expansions: 
     LE le(le_center, vme); 
+
     // And a shifted local expansion: 
-    std::vector<LE*> vle{&le};
-    LE sle(sle_center, vle); 
+    LE sle(sle_center, le); 
 
     double me_pot_error = abs(me1.evaluatePotential(me_eval_point) 
         + me2.evaluatePotential(me_eval_point) - me_pot_ref); 

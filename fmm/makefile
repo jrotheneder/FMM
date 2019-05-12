@@ -3,7 +3,7 @@ EXT = cpp
 DEBUGFLAGS = -g -ggdb -O0
 CXXFLAGS = -Wall -std=c++17 -pedantic $(DEBUGFLAGS)
 TARGET = test2
-DEPENDS = abstract_orthtree.hpp balanced_orthtree.hpp point_orthtree.hpp vector.hpp fmm_tree.hpp multipole_expansion.hpp local_expansion.hpp
+DEPENDS = abstract_orthtree.hpp balanced_orthtree.hpp point_orthtree.hpp vector.hpp fmm_tree.hpp multipole_expansion.hpp local_expansion.hpp debugging.hpp
 
 all: $(TARGET)
 

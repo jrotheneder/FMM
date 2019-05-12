@@ -102,7 +102,7 @@ std::array<Vector, AbstractOrthtree<Vector, d>::n_children>
 
     for(std::size_t i = 0; i < AbstractOrthtree<Vector, d>::n_children; ++i) {
 
-        std::bitset<d> direction_bits = bitset<d>(i); 
+        std::bitset<d> direction_bits = std::bitset<d>(i); 
 
         Vector v;  
         for(std::size_t j = 0; j < d; ++j) {
@@ -113,11 +113,11 @@ std::array<Vector, AbstractOrthtree<Vector, d>::n_children>
     }
 
     // Sample outputs: 
-    // 2D: {-1, 1}, {1, 1}, {-1, -1}, {1, -1}
-    // 3D: {-1, 1, -1}, {1, 1, -1 }, {-1, -1, -1}, {1, -1, -1}, 
-    //     {-1, 1, 1}, {1, 1, 1}, {-1, -1, 1}, {1, -1, 1}
+    // 2D: {-1, -1}, {-1, 1}, {1, -1}, {1, 1}
+    // 3D: {-1, -1, -1}, {-1, -1, 1 }, {-1, 1, -1}, {-1, 1, 1}, 
+    //     {1, -1, -1}, {1, -1, 1 }, {1, 1, -1}, {1, 1, 1}
 
-    VectorToFile(child_center_directions.data(), child_center_directions.size(), "test.dat"); 
+    vecToFile(child_center_directions, child_center_directions.size(), "test.dat"); 
     return child_center_directions; 
 }
 

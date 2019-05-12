@@ -42,6 +42,8 @@ struct Vector {
        return o; 
     }
 
+    bool operator==(const Vector& rhs) const { return this->coords == rhs.coords; }
+
     std::array<double, d>& data() { return coords; }
     const std::array<double, d>& data() const { return coords; }
     void fill(double val) { coords.fill(val); }
@@ -62,10 +64,14 @@ struct PointCharge {
     PointCharge(Vector<d> position = {}, double q = 0): position(position), q(q) {}
     PointCharge(std::array<double, d> position, double q): position(position), q(q) {}
 
+    bool operator==(const PointCharge& rhs) const { 
+        return this->q == rhs.q && this->position == rhs.position;
+    }
+
     double sourceStrength() const { return q; }
 
     friend std::ostream& operator<<(std::ostream& o, const PointCharge& p) {
-        o << static_cast<const Vector<d>&>(p) << ", q = " << p.q; 
+        o << p.position << ", q = " << p.q; 
         return o; 
     }
 };

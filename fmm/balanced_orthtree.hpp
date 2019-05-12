@@ -39,6 +39,11 @@ std::array<uint32_t, d> BalancedOrthtree<Vector, d>::
 
     for(unsigned i = 0; i < d; i++) {
         indices[i] = floor(ratios[i] * n_boxes_per_dim);
+
+        if(indices[i] >= n_boxes_per_dim) {
+            throw std::runtime_error("Illegal index: point lies outside of "
+                "tree region."); 
+        }
     }
     
     return indices;
@@ -77,15 +82,15 @@ unsigned long long BalancedOrthtree<Vector, d>::
     // which in turn require h bits each => the individual indices may only use 
     // h bits, else we overflow. 
     const unsigned bits_used = this->height; 
-    const uint32_t max_index = 1UL << bits_used; 
 
-    assert(bits_used < max_bits_per_index); 
+    if(bits_used >= max_bits_per_index) {
+        throw std::runtime_error("ULL size insufficient for given tree."); 
+    }; 
 
     std::bitset<morton_index_size> morton_index; 
     std::bitset<morton_index_size> helper_bitset; 
 
     for(unsigned i = 0; i < d; ++i) {
-        assert(indices[i] < max_index);
         helper_bitset <<= bits_used; 
         helper_bitset |= std::bitset<morton_index_size>(indices[i]); 
     }
