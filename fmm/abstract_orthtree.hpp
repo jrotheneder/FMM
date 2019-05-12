@@ -22,9 +22,9 @@ template<typename Vector, std::size_t d>
 class AbstractOrthtree {
 public:
     
-    struct Node; 
+    struct BaseNode; 
 
-    Node * root; 
+    BaseNode * root; 
 
     std::size_t height;
     static const int n_children = pow(2,d); 
@@ -32,7 +32,7 @@ public:
 
     AbstractOrthtree(): child_center_directions(getChildCenterDirections()) {};
 
-    void traverseBFSCore(const std::function <void(Node *)>& processNode);
+    void traverseBFSCore(const std::function <void(BaseNode *)>& processNode);
 
     std::size_t getHeight() const { return this->height; }
     Vector getCenter() const { return this->root->center; }
@@ -49,31 +49,32 @@ public:
 
 
 template<typename Vector, std::size_t d>
-struct AbstractOrthtree<Vector, d>::Node {
+struct AbstractOrthtree<Vector, d>::BaseNode {
 
     Vector center;         
     double box_length;     // This nodes's bounding box length
-    std::size_t depth;    // Depth of the node in the tree
+    std::size_t depth;     // Depth of the node in the tree
 
-    Node * parent; 
-    std::array<Node*, n_children> children; 
+    BaseNode * parent; 
+    std::array<BaseNode*, n_children> children; 
 
-    Node(Vector center, double box_length, std::size_t depth, 
-        Node * parent = nullptr): center(center), box_length(box_length), 
+    BaseNode() {} // Empty default constructor
+    BaseNode(Vector center, double box_length, std::size_t depth, 
+        BaseNode * parent = nullptr): center(center), box_length(box_length), 
         depth(depth), parent(parent), children() {}
 
-    virtual ~Node() { for(Node* child : children) delete child; }
+    virtual ~BaseNode() {}; // Implement tailored destructor in deriving classes
 }; 
 
 
 template<typename Vector, std::size_t d>
 void AbstractOrthtree<Vector, d>::traverseBFSCore(const std::function 
-        <void(Node *)>& processNode) {
+        <void(BaseNode *)>& processNode) {
 
-    std::queue<Node*> node_queue({this->root}); 
+    std::queue<BaseNode*> node_queue({this->root}); 
     while(!node_queue.empty()) {
 
-        Node * current_node = node_queue.front();
+        BaseNode * current_node = node_queue.front();
         node_queue.pop(); 
 
         processNode(current_node); 
@@ -95,9 +96,9 @@ std::array<Vector, AbstractOrthtree<Vector, d>::n_children>
 
     //Use a length d bit vector to represent any of the n_children = 2^d 
     //possible directions in which the centers of a given node's children 
-    //may lie. A 0 in the d-i-1-st position of the bit vector corresponds to 
-    //a direction vector whose i-th component is -1, a 1 in the same
-    //position to a direction vector whose i-th component is +1.
+    //may lie. A 0 in the d-j-1-st position of the bit vector corresponds to 
+    //a direction vector whose j-th component is -1; a 1 in the same position 
+    //to a direction vector whose j-th component is +1.
 
     for(std::size_t i = 0; i < AbstractOrthtree<Vector, d>::n_children; ++i) {
 
@@ -111,11 +112,12 @@ std::array<Vector, AbstractOrthtree<Vector, d>::n_children>
         child_center_directions[i] = v;  
     }
 
-    // Outputs: 
-    // 2D: {-1, -1}, {-1, 1}, {1, -1}, {1, 1}
-    // 3D: {-1, -1, -1}, {-1, -1, 1 }, {-1, 1, -1}, {-1, 1, 1}, {1, -1, -1}, 
-    //     {1, -1, 1}, {1, 1, -1}, {1, 1, 1}
+    // Sample outputs: 
+    // 2D: {-1, 1}, {1, 1}, {-1, -1}, {1, -1}
+    // 3D: {-1, 1, -1}, {1, 1, -1 }, {-1, -1, -1}, {1, -1, -1}, 
+    //     {-1, 1, 1}, {1, 1, 1}, {-1, -1, 1}, {1, -1, 1}
 
+    VectorToFile(child_center_directions.data(), child_center_directions.size(), "test.dat"); 
     return child_center_directions; 
 }
 
@@ -140,8 +142,9 @@ std::tuple<Vector, Vector> AbstractOrthtree<Vector, d>::getDataRange(
     // on boundaries. This simplifies the index calculations in getLeafBoxIndices().
 
     double paddingFactor = 1E-5;
-    lower_bounds = lower_bounds - paddingFactor * lower_bounds;
+    lower_bounds = lower_bounds + paddingFactor * lower_bounds;
     upper_bounds = upper_bounds + paddingFactor * upper_bounds;
+
 
     return make_tuple(lower_bounds, upper_bounds);
 }

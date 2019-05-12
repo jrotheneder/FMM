@@ -52,14 +52,14 @@ struct MultipoleExpansion<Vector, Source, d, typename std::enable_if<d==2>::type
     // Construct expansion from other expansions by shifting
     MultipoleExpansion(const Vector& center_vec, std::vector<ME*>& expansions): 
             coefficients(expansions[0]->coefficients.size()), 
-            center({center_vec[0], center_vec[1]}), Q(0){
+            center({center_vec[0], center_vec[1]}), Q(0) {
         
         for(ME* me : expansions) {
             Q += me->Q;     
 
-            assert(me->coefficients.size() > 0);  // TODO remove in a bit
+            assert(me->coefficients.size() > 0);  // TODO remove
         
-            Complex shift_vec = me->center - this->center; //TODO: check this!!
+            Complex shift_vec = me->center - this->center; 
             std::vector<Complex> shifted_coefficients 
                 = me->shift(shift_vec);
 
@@ -71,8 +71,7 @@ struct MultipoleExpansion<Vector, Source, d, typename std::enable_if<d==2>::type
     }
 
     // TODO mark const 
-    // Shift is the vector (complex number) from the new center to the old
-    // center.
+    // Shift is the vector (complex number) from the new to the old center.
     std::vector<Complex> shift(const Complex& shift) {
 
         std::vector<Complex> shifted_coefficients(coefficients.size()); 
@@ -137,11 +136,25 @@ struct MultipoleExpansion<Vector, Source, d, typename std::enable_if<d==2>::type
 template<typename Vector, typename Source, std::size_t d> 
 struct MultipoleExpansion<Vector, Source, d, typename std::enable_if<d==3>::type> {
 
-    std::vector<double> coefficients; 
+    using Complex = std::complex<double>;
+    using ME = MultipoleExpansion; 
 
-    MultipoleExpansion(std::vector<Source> sources = {}) {} //TODO
+    std::vector<Complex> coefficients; // ME coefficients
+    Complex center; // Center of the expansion
+    double Q; // total source strength of all sources contained in box
 
-    std::vector<double> shift(Vector v) { return {}; }
+    MultipoleExpansion() {}
+    MultipoleExpansion(const Vector& center_vec, std::size_t order, 
+            std::vector<Source>& sources): coefficients(order), 
+            center({center_vec[0], center_vec[1]}), Q(0) {}
+    MultipoleExpansion(const Vector& center_vec, std::vector<ME*>& expansions): 
+            coefficients(expansions[0]->coefficients.size()), 
+            center({center_vec[0], center_vec[1]}), Q(0) {}
+
+    std::vector<Complex> shift(const Complex& shift) { return {}; }
+
+    double evaluatePotential(const Vector& eval_point) { return 0; }  
+    Vector evaluateForcefield(const Vector& eval_point) { return Vector{}; }
 };
 
 

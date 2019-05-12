@@ -20,9 +20,9 @@ string time_proc_stamp(size_t iteration, size_t procId) {
 }
 
 template <typename T>
-void print_vec(vector<T> vec) {
+void print_iterable(T obj) {
     cout << "[ ";
-    for(auto i : vec) {
+    for(auto& i : obj) {
         cout << i << ", "; 
     }
     cout << "]\n";

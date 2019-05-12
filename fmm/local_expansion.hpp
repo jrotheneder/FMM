@@ -15,15 +15,21 @@ struct LocalExpansion<Vector, Source, d, typename std::enable_if<d==2>::type> {
     using ME = MultipoleExpansion<Vector, Source, d>;
     using LE = LocalExpansion;
 
-    std::vector<Complex> coefficients; // Local expansion coefficients
     Complex center; // Center of the expansion
+    std::vector<Complex> coefficients; // Local expansion coefficients
 
-    LocalExpansion() {}
+    LocalExpansion() {} // Empty default constructor
+    LocalExpansion(Vector center_vec, std::size_t order): 
+            center({center_vec[0], center_vec[1]}), coefficients(order+1) {}
+
     LocalExpansion(const Vector& center_vec, std::vector<ME*> expansions):
-            coefficients(expansions[0]->coefficients.size()+1), 
             center({center_vec[0], center_vec[1]}) {
         
-        std::size_t order = coefficients.size();
+        assert(expansions.size() > 0); 
+
+        std::size_t order = expansions[0]->coefficients.size();         
+        coefficients.resize(order+1); //Store 0-th coeff expl. in LE
+
 
         // Convert the supplied multipiole expansions to a local expansion
         for(ME* me : expansions) { 
@@ -57,23 +63,39 @@ struct LocalExpansion<Vector, Source, d, typename std::enable_if<d==2>::type> {
     }
 
     LocalExpansion(const Vector& center_vec, std::vector<LE*> expansions): 
-            coefficients(expansions[0]->coefficients.size()), 
             center({center_vec[0], center_vec[1]}) {
+        
+        assert(expansions.size() > 0); 
+
+        std::size_t order = expansions[0]->coefficients.size();
+        coefficients.resize(order); 
 
         for(LE* le : expansions) {
             
             Complex shift_vec = le->center - this->center; 
             std::vector<Complex> shifted_coefficients = le->shift(shift_vec); 
 
-            std::transform (coefficients.begin(), coefficients.end(), 
-                shifted_coefficients.begin(), coefficients.begin(), 
-                std::plus<Complex>()
+            std::transform (
+                coefficients.begin(), coefficients.end(), 
+                shifted_coefficients.begin(), coefficients.begin(), std::plus<Complex>()
             );
         }
     }
 
     //TODO: Need a way to integrate multipole exps in interlist into an
     //existing le
+    LocalExpansion& operator+=(const LocalExpansion& rhs) {
+
+        assert(this->coefficients.size() == rhs.coefficients.size());
+
+        std::transform (
+            coefficients.begin(), coefficients.end(), rhs.coefficients.begin(), 
+            coefficients.begin(), std::plus<Complex>()
+        );
+
+        return *this;
+    }
+
 
     // Shift is the vector (complex number) from the new center to the old
     // center.
@@ -138,12 +160,28 @@ struct LocalExpansion<Vector, Source, d, typename std::enable_if<d==2>::type> {
 template<typename Vector, typename Source, std::size_t d >
 struct LocalExpansion<Vector, Source, d, typename std::enable_if<d==3>::type> {
 
+    using Complex = std::complex<double>;
     using ME = MultipoleExpansion<Vector, Source, d>;
+    using LE = LocalExpansion;
 
-    std::vector<double> coefficients; 
+    Complex center; // Center of the expansion
+    std::vector<Complex> coefficients; // Local expansion coefficients
 
-    LocalExpansion(ME me = {}) {} // TODO 
-    std::vector<double> shift(Vector v);
+    LocalExpansion() {} // Empty default constructor
+    LocalExpansion(Vector center_vec, std::size_t order): 
+            center({center_vec[0], center_vec[1]}), coefficients(order+1) {}
+
+    LocalExpansion(const Vector& center_vec, std::vector<ME*> expansions):
+            center({center_vec[0], center_vec[1]}) {}
+
+    LocalExpansion(const Vector& center_vec, std::vector<LE*> expansions): 
+            center({center_vec[0], center_vec[1]}) {}
+
+    LocalExpansion& operator+=(const LocalExpansion& rhs) { return *this; }
+
+    std::vector<Complex> shift(const Complex shift) { return {}; }
+    double evaluatePotential(const Vector& eval_point) { return 0; } 
+    Vector evaluateForcefield(const Vector& eval_point) { return Vector{}; }
 };
 
 } // namespace fmm

@@ -9,13 +9,13 @@
 #include "debugging.hpp" 
 #include "vector.hpp" 
 
-//#include "point_orthtree.hpp" 
 #include "multipole_expansion.hpp" 
 #include "local_expansion.hpp" 
 #include "../direct/direct.hpp" 
 
 using namespace std;
 using namespace fmm; 
+using namespace direct; 
 
 int main(int argc, char *argv[]) {
 
@@ -25,8 +25,12 @@ int main(int argc, char *argv[]) {
     using Src = PointCharge<d>;
     using ME = fmm::MultipoleExpansion<Vec, Src, d>;
     using LE = fmm::LocalExpansion<Vec, Src, d>;
+
+    // Slightly awkward function aliasing: 
+    constexpr auto EPot = Electrostatic_Potential<Vec, Src, d>;
+    constexpr auto EFrc = Electrostatic_Force<Vec, Src, d>;
      
-    size_t N = 5000;
+    const size_t N = 5000;
     const double extent = 16;
 
     const double eps = 1E-10; 
@@ -72,35 +76,27 @@ int main(int argc, char *argv[]) {
 
     // Compute reference values directly: 
 
-    const double me_pot_ref = direct::evaluateInteraction<Vec, Src, 
-        double>(sources1, me_eval_point, direct::Electrostatic_Potential<Vec, 
-        Src, d>) 
-        + direct::evaluateInteraction<Vec, Src, double>(sources2, 
-        me_eval_point, direct::Electrostatic_Potential<Vec, Src, d>);
+    const double me_pot_ref = 
+        evaluateInteraction<Vec, Src, double>(sources1, me_eval_point, EPot) 
+        + evaluateInteraction<Vec, Src, double>(sources2, me_eval_point, EPot);
 
-    const double le_pot_ref = direct::evaluateInteraction<Vec, Src, 
-        double>(sources1, le_eval_point, direct::Electrostatic_Potential<Vec, 
-        Src, d>) 
-        + direct::evaluateInteraction<Vec, Src, double>(sources2, 
-        le_eval_point, direct::Electrostatic_Potential<Vec, Src, d>);
+    const double le_pot_ref = 
+        evaluateInteraction<Vec, Src, double>(sources1, le_eval_point, EPot) 
+        + evaluateInteraction<Vec, Src, double>(sources2, le_eval_point, EPot);
 
-    const Vec me_force_ref = direct::evaluateInteraction<Vec, 
-        Src, Vec>(sources1, me_eval_point, 
-        direct::Electrostatic_Force<Vec, Src, d>)
-        + direct::evaluateInteraction<Vec, Src, 
-        Vec>(sources2, me_eval_point, direct::Electrostatic_Force<Vec, 
-        Src, d>);
+    const Vec me_force_ref = 
+        evaluateInteraction<Vec, Src, Vec>(sources1, me_eval_point, EFrc)
+        + evaluateInteraction<Vec, Src, Vec>(sources2, me_eval_point, EFrc);
 
-    const Vec le_force_ref = direct::evaluateInteraction<Vec, 
-        Src, Vec>(sources1, le_eval_point, direct::Electrostatic_Force<Vec, Src, d>)
-        + direct::evaluateInteraction<Vec, Src, Vec>(sources2, le_eval_point, 
-        direct::Electrostatic_Force<Vec, Src, d>);
+    const Vec le_force_ref = 
+        evaluateInteraction<Vec, Src, Vec>(sources1, le_eval_point, EFrc) 
+        + evaluateInteraction<Vec, Src, Vec>(sources2, le_eval_point, EFrc);
 
     // Set up multipole expansion from sources:
     ME me1(center1, order, sources1); 
     ME me2(center2, order, sources2); 
 
-    // ... and multipole expansion by shift: 
+    // ... and a multipole expansion by shift: 
     std::vector<ME*> vme{&me1, &me2};
     ME se(se_center, vme); 
 
@@ -124,11 +120,13 @@ int main(int argc, char *argv[]) {
             - le_force_ref).norm(); 
 
     cout << "Order is " << order << endl;
+
     cout << "Potential errors:" << endl 
         << "Multipole: " << me_pot_error << endl 
         << "Multipole (shifted): " << se_pot_error << endl 
         << "Local:" << le_pot_error << endl
         << "Local (shifted):" << sle_pot_error << endl << endl
+
         << "Force errors: " << endl
         << "Multipole: " << me_force_error << endl 
         << "Multipole (shifted): " << se_force_error << endl

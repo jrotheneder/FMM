@@ -9,21 +9,18 @@
 #include "debugging.hpp" 
 #include "vector.hpp" 
 
-//#include "point_orthtree.hpp" 
-#include "fmm_tree.hpp" 
+#include "point_orthtree.hpp" 
 
 //using namespace std;
-using namespace fmm; 
 
 int main(int argc, char *argv[]) {
      
     size_t N = 5000;
-    const size_t d = 2;
-    const size_t order = 10; 
+    const size_t d = 3;
     const size_t seed = 42; // Reference data is hardcoded and requires this seed
     srand(seed); 
 
-    vector<PointCharge<d>> sources;
+    vector<Vector<d>> sources;
     Vector<d> center{}; // Origin 
     Vector<d> ones; ones.fill(1);
     double extent = 32;
@@ -33,14 +30,11 @@ int main(int argc, char *argv[]) {
         for(size_t j = 0; j < d; ++j) {
             v[j] =  extent * ((double) rand() / (RAND_MAX)) - extent/2;
         }
-        double q = (double) rand() / (RAND_MAX) * (i % 2 ? 1 : -1);
-        PointCharge<d> src {v, q};
 
-        sources.push_back(src); 
+        sources.push_back(v); 
     }
 
-//  PointOrthtree<Vector<d>, d>q(pts, 100);
-    BalancedFmmTree<Vector<d>, PointCharge<d>, d>q(sources, 100, 1E-5);
+    PointOrthtree<Vector<d>, d>q(sources, 100);
     std::cout << "Orthtree height is " << q.getHeight() << ", centered at " <<
         q.getCenter() << std::endl;
     q.toFile();

@@ -8,10 +8,11 @@ class PointOrthtree: public BalancedOrthtree<Vector, d> {
 
     using AOT = AbstractOrthtree<Vector, d>;
     using Super = BalancedOrthtree<Vector, d>;
-    using Node = typename AOT::Node; 
+    using BaseNode = typename AOT::BaseNode; 
     using AbstractOrthtree<Vector, d>::height;
 
 public:
+    struct Node; 
     struct Leaf; 
 
     PointOrthtree(std::vector<Vector> points, std::size_t s);
@@ -23,9 +24,19 @@ public:
 };
 
 template<typename Vector, std::size_t d>
-struct PointOrthtree<Vector, d>::Leaf: AbstractOrthtree<Vector, d>::Node {
+struct PointOrthtree<Vector, d>::Node: BaseNode {
+
+    Node(Vector center, double box_length, std::size_t depth, 
+        Node * parent): BaseNode(center, box_length, depth, parent) {}
+
+    virtual ~Node() { for(auto child : this->children) { delete child; } }
+};
+
+template<typename Vector, std::size_t d>
+struct PointOrthtree<Vector, d>::Leaf: Node {
 
     std::vector<Vector> * points;
+
     Leaf(Vector center, double box_length, std::size_t depth, 
         Node * parent): Node(center, box_length, depth, parent), points() {}
     virtual ~Leaf() { delete points; }
@@ -56,7 +67,7 @@ PointOrthtree<Vector, d>::PointOrthtree(std::vector<Vector> points,
     std::size_t child_depth = 0; 
 
     this->root = new Node(center, box_length, child_depth, nullptr); 
-    std::queue<Node*> node_queue({this->root}); 
+    std::queue<Node*> node_queue({static_cast<Node*>(this->root)}); 
 
     while(child_depth < this->height) {
 
@@ -104,7 +115,8 @@ PointOrthtree<Vector, d>::PointOrthtree(std::vector<Vector> points,
     }
 
     for(std::size_t k = 0; k < points.size(); k++) {
-        std::array<size_t, d> indices = Super::getLeafBoxIndices(points[k]);
+        std::array<uint32_t, d> indices = Super::getLeafBoxIndices(points[k]);
+        assert(Super::getFlatIndex(indices) < n_leaves);
         leaf_vectors[Super::getFlatIndex(indices)]->push_back(points[k]);
     }
 
@@ -113,7 +125,7 @@ PointOrthtree<Vector, d>::PointOrthtree(std::vector<Vector> points,
         Leaf * leaf = static_cast<Leaf*>(node_queue.front());
         node_queue.pop(); 
 
-        std::array<size_t, d> indices = Super::getLeafBoxIndices(leaf->center);
+        std::array<uint32_t, d> indices = Super::getLeafBoxIndices(leaf->center);
         leaf->points = leaf_vectors[Super::getFlatIndex(indices)];
     }
      
@@ -132,7 +144,7 @@ void PointOrthtree<Vector, d>::toFile() {
 
     std::size_t n_node = 0;
 
-    AOT::traverseBFSCore([&](Node * current) {
+    AOT::traverseBFSCore([&](BaseNode * current) {
 
         Vector center = current->center;
         double box_length = current->box_length;

@@ -53,12 +53,23 @@ int main(int argc, char *argv[]) {
     std::vector<fmm::MultipoleExpansion<Vector<d>, PointCharge<d>, d>*> vme{&me};
     fmm::MultipoleExpansion<Vector<d>, PointCharge<d>, d> se(shifted_center, vme); 
 
+    /*
     cout << "Order is " << order << endl;
     cout << me.evaluatePotential(eval_point) << endl; 
     cout <<  me.evaluateForcefield(eval_point) << endl;
 
     cout << se.evaluatePotential(eval_point) << endl; 
     cout << se.evaluateForcefield(eval_point) << endl;
+    */
+
+    /*
+    for(unsigned i = 0; i < 8; ++i) {
+        for(unsigned j = 0; j < 8; ++j) {
+            std::cout << i << "\t" << j << "\t" << q.getMortonIndex({i,j}) << endl; 
+        }
+    }
+    */
+    
 
     return 0;
 
