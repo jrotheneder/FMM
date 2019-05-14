@@ -19,7 +19,7 @@ using namespace fmm::fields;
 
 int main(int argc, char *argv[]) {
 
-    const size_t d = 2;
+    const size_t d = 3;
 
     using Vec = Vector<d>;
     using Src = PointCharge<d>;
@@ -30,10 +30,10 @@ int main(int argc, char *argv[]) {
     constexpr auto EPot = electrostaticPotential<Vec, Src, d>;
     constexpr auto EFrc = electrostaticForce<Vec, Src, d>;
      
-    const size_t N = 5000;
+    const size_t N = 1000;
     const double extent = 16;
 
-    const double eps = 1E-10; 
+    const double eps = 1E-3; 
     const size_t order = ceil(log(1/eps) / log(2)); 
     const size_t seed = 42; 
     srand(seed); 
@@ -75,7 +75,6 @@ int main(int argc, char *argv[]) {
     }
 
     // Compute reference values directly: 
-
     const double me_pot_ref = 
         evaluateInteraction<Vec, Src, double>(sources1, me_eval_point, EPot) 
         + evaluateInteraction<Vec, Src, double>(sources2, me_eval_point, EPot);
@@ -96,6 +95,7 @@ int main(int argc, char *argv[]) {
     ME me1(center1, order, sources1); 
     ME me2(center2, order, sources2); 
 
+    std::cout << me1 << "\n";
     // ... and a multipole expansion by shift: 
     std::vector<ME*> vme{&me1, &me2};
     ME se(se_center, vme); 
@@ -106,18 +106,28 @@ int main(int argc, char *argv[]) {
     // And a shifted local expansion: 
     LE sle(sle_center, le); 
 
+    std::cout << "Reference pot = " << me_pot_ref << ", me pot = " << 
+        me1.evaluatePotential(me_eval_point) 
+        + me2.evaluatePotential(me_eval_point) << "\n"; 
+
     double me_pot_error = abs(me1.evaluatePotential(me_eval_point) 
-        + me2.evaluatePotential(me_eval_point) - me_pot_ref); 
-    double se_pot_error = abs(se.evaluatePotential(me_eval_point) - me_pot_ref); 
-    double le_pot_error = abs(le.evaluatePotential(le_eval_point) - le_pot_ref); 
-    double sle_pot_error = abs(sle.evaluatePotential(le_eval_point) - le_pot_ref); 
+        + me2.evaluatePotential(me_eval_point) - me_pot_ref)/me_pot_ref; 
+    double se_pot_error = abs(se.evaluatePotential(me_eval_point) 
+            - me_pot_ref)/me_pot_ref; 
+    double le_pot_error = abs(le.evaluatePotential(le_eval_point) 
+            - le_pot_ref)/le_pot_ref; 
+    double sle_pot_error = abs(sle.evaluatePotential(le_eval_point) 
+            - le_pot_ref)/le_pot_ref; 
 
     double me_force_error = (me1.evaluateForcefield(me_eval_point) 
-        + me2.evaluateForcefield(me_eval_point) - me_force_ref).norm(); 
-    double se_force_error = (se.evaluateForcefield(me_eval_point) - me_force_ref).norm(); 
-    double le_force_error = (le.evaluateForcefield(le_eval_point) - le_force_ref).norm(); 
+        + me2.evaluateForcefield(me_eval_point) - me_force_ref).norm()
+        / me_force_ref.norm(); 
+    double se_force_error = (se.evaluateForcefield(me_eval_point) 
+            - me_force_ref).norm() / me_force_ref.norm(); 
+    double le_force_error = (le.evaluateForcefield(le_eval_point) 
+            - le_force_ref).norm() / le_force_ref.norm(); 
     double sle_force_error = (sle.evaluateForcefield(le_eval_point) 
-            - le_force_ref).norm(); 
+            - le_force_ref).norm() / le_force_ref.norm(); 
 
     cout << "Order is " << order << endl;
 

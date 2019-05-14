@@ -312,34 +312,7 @@ std::vector<double> BalancedFmmTree<Vector, Source, d>::
     for(std::size_t i = 0; i < sources.size(); ++i) {
         potentials[i] = evaluatePotential(sources[i].position);
     }
-    /*
-    std::size_t next_index = 0; 
-    for(std::size_t i = 0; i < n_leaves; ++i) {
 
-        FmmLeaf& leaf = leaves[i];  
-
-        for(std::size_t j = 0; j < leaf.sources->size(); ++j) {
-
-            Source& src = leaf.sources[0][j]; 
-            double pot = leaf.local_expansion.evaluatePotential(src.position); 
-
-            for(FmmNode* colleague : leaf.near_neighbours) {
-                if(colleague != &leaf) {
-                    pot += evalScalarInteraction(
-                        *(static_cast<FmmLeaf*>(colleague)->sources), 
-                        src.position, potentialFunction);
-                }
-                else {
-                    pot += evalScalarInteraction(
-                        *(static_cast<FmmLeaf*>(colleague)->sources), 
-                        src.position, safePotentialFunction);
-                }
-            }
-
-            potentials[next_index++] = pot;
-        }
-    }
-    */
     return potentials; 
 }
 
@@ -351,35 +324,6 @@ std::vector<Vector> BalancedFmmTree<Vector, Source, d>::
     for(std::size_t i = 0; i < sources.size(); ++i) {
         forces[i] = evaluateForcefield(sources[i].position);
     }
-    /*
-    std::size_t next_index = 0; 
-    for(std::size_t i = 0; i < n_leaves; ++i) {
-
-        FmmLeaf& leaf = leaves[i];  
-
-        for(std::size_t j = 0; j < leaf.sources->size(); ++j) {
-
-            Source& src = leaf.sources[0][j]; 
-            Vector force = leaf.local_expansion.evaluateForcefield(src.position); 
-
-            for(FmmNode* colleague : leaf.near_neighbours) {
-                if(colleague != &leaf) {
-                    force += evalVectorInteraction(
-                        *(static_cast<FmmLeaf*>(colleague)->sources), 
-                        src.position, forceFunction);
-                }
-                else {
-                    force += evalVectorInteraction(
-                        *(static_cast<FmmLeaf*>(colleague)->sources), 
-                        src.position, safeForceFunction);
-                }
-            }
-
-            //force *= src.sourceStrength(); // compute force from force field
-            forces[next_index++] = force;
-        }
-    }
-    */
     
     return forces; 
 }
@@ -584,23 +528,25 @@ void BalancedFmmTree<Vector, Source, d>::distributeSources() {
         leaf_source_vectors[this->getFlatIndex(indices)]->push_back(sources[k]);
     }
 
-    // Assign the 'buckets' of source to their respective leaves. Store all
-    // buckets contiguously in the original sources array. Since the leaves
-    // array is in BFS order (or equivalently, Morton sorted), this is
-    // equivalent to sorting the buckets w.r.t. the Morton index of their leaves
-    std::size_t source_index = 0; //Next pos. in sources to write to
+    // Assign the 'buckets' of source to their respective leaves.     std::size_t source_index = 0; //Next pos. in sources to write to
     for(std::size_t k = 0; k < n_leaves; k++) {
 
         FmmLeaf& leaf = leaves[k]; 
         auto indices = this->getLeafBoxIndices(leaf.center);
         leaf.sources = leaf_source_vectors[this->getFlatIndex(indices)]; 
-            
+
+        // Store all
+        // buckets contiguously in the original sources array. Since the leaves
+        // array is in BFS order (or equivalently, Morton sorted), this is
+        // equivalent to sorting the buckets w.r.t. the Morton index of their leaves
+        //
         // TODO could use this for implicit association of sources and leaves
         // via offsets in sources instead of explicitly storing copies of
         // sources in leaves
-        for(auto source : *leaf.sources) {
-            sources[source_index++] = source; 
-        }
+
+//      for(auto source : *leaf.sources) {
+//          sources[source_index++] = source; 
+//      }
     }
      
     delete[] leaf_source_vectors; 

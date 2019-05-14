@@ -1,6 +1,6 @@
 namespace fmm {
 
-template<typename Vector, typename Source, std::size_t d, typename = void>
+template<typename Vector, typename Source, std::size_t d>
 struct LocalExpansion {
     static_assert(d==2 || d==3, 
         "This implementation supports only 2 or 3 dimensions.\n"
@@ -8,11 +8,11 @@ struct LocalExpansion {
 };
 
 // 2-D Implementation
-template<typename Vector, typename Source, std::size_t d>
-struct LocalExpansion<Vector, Source, d, typename std::enable_if<d==2>::type> {
+template<typename Vector, typename Source>
+struct LocalExpansion<Vector, Source, 2> {
 
     using Complex = std::complex<double>;
-    using ME = MultipoleExpansion<Vector, Source, d>;
+    using ME = MultipoleExpansion<Vector, Source, 2>;
     using LE = LocalExpansion;
 
     Complex center; // Center of the expansion
@@ -101,8 +101,7 @@ struct LocalExpansion<Vector, Source, d, typename std::enable_if<d==2>::type> {
         return shifted_coefficients;
     };
 
-    // TODO mark const
-    double evaluatePotential(const Vector& eval_point) {
+    double evaluatePotential(const Vector& eval_point) const {
 
         Complex z{eval_point[0], eval_point[1]}; // get complex repr.
         Complex z_rel = z - center; 
@@ -122,8 +121,7 @@ struct LocalExpansion<Vector, Source, d, typename std::enable_if<d==2>::type> {
         return -result.real(); 
     } 
 
-    //TODO mark const
-    Vector evaluateForcefield(const Vector& eval_point) { 
+    Vector evaluateForcefield(const Vector& eval_point) const { 
 
         Complex z{eval_point[0], eval_point[1]}; // get complex repr.
         Complex z_rel = z - center; 
@@ -145,31 +143,29 @@ struct LocalExpansion<Vector, Source, d, typename std::enable_if<d==2>::type> {
 };
 
 // 3-D Implementation
-template<typename Vector, typename Source, std::size_t d >
-struct LocalExpansion<Vector, Source, d, typename std::enable_if<d==3>::type> {
+template<typename Vector, typename Source>
+struct LocalExpansion<Vector, Source, 3> {
 
-    using Complex = std::complex<double>;
-    using ME = MultipoleExpansion<Vector, Source, d>;
+    using ME = MultipoleExpansion<Vector, Source, 3>;
     using LE = LocalExpansion;
 
-    Complex center; // Center of the expansion
-    std::vector<Complex> coefficients; // Local expansion coefficients
+    Vector center; // Center of the expansion
+    std::vector<double> coefficients; // Local expansion coefficients
 
     LocalExpansion() {} // Empty default constructor
-    LocalExpansion(Vector center_vec, std::size_t order): 
-            center({center_vec[0], center_vec[1]}), coefficients(order+1) {}
+    LocalExpansion(Vector center_vec, std::size_t order) {}
+    LocalExpansion(const Vector& center_vec, std::vector<ME*> expansions) {}
+    LocalExpansion(const Vector& center_vec, LocalExpansion& incoming) {}
 
-    LocalExpansion(const Vector& center_vec, std::vector<ME*> expansions):
-            center({center_vec[0], center_vec[1]}) {}
+    LocalExpansion& operator+=(const LocalExpansion& rhs) { 
+        //TODO implement!
+        return *this;  
+    }
 
-    LocalExpansion(const Vector& center_vec, std::vector<LE*> expansions): 
-            center({center_vec[0], center_vec[1]}) {}
+    std::vector<double> shift(const Vector& shift) const { return {}; }
 
-    LocalExpansion& operator+=(const LocalExpansion& rhs) { return *this; }
-
-    std::vector<Complex> shift(const Complex shift) { return {}; }
-    double evaluatePotential(const Vector& eval_point) { return 0; } 
-    Vector evaluateForcefield(const Vector& eval_point) { return Vector{}; }
+    double evaluatePotential(const Vector& eval_point) const { return 0; }  
+    Vector evaluateForcefield(const Vector& eval_point) const { return Vector{}; }
 };
 
 } // namespace fmm
