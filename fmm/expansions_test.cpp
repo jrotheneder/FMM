@@ -1,9 +1,7 @@
 #include <vector> 
-#include <array> 
-#include <complex> 
 #include <iostream> 
+#include <iomanip> 
 #include <string> 
-#include <cstdlib> 
 #include <cmath> 
 
 #include "debugging.hpp" 
@@ -23,17 +21,19 @@ int main(int argc, char *argv[]) {
 
     using Vec = Vector<d>;
     using Src = PointCharge<d>;
-    using ME = fmm::MultipoleExpansion<Vec, Src, d>;
-    using LE = fmm::LocalExpansion<Vec, Src, d>;
+    using ME = MultipoleExpansion<Vec, Src, d>;
+    using LE = LocalExpansion<Vec, Src, d>;
 
     // Slightly awkward function aliasing: 
-    constexpr auto EPot = electrostaticPotential<Vec, Src, d>;
-    constexpr auto EFrc = electrostaticForce<Vec, Src, d>;
+    constexpr auto EPot = fields::electrostaticPotential<Vec, Src, d>;
+    constexpr auto EFrc = fields::electrostaticForce<Vec, Src, d>;
+    constexpr auto evalScalarInteraction = evaluateInteraction<Vec, Src, double>;
+    constexpr auto evalVectorInteraction = evaluateInteraction<Vec, Src, Vec>;
      
-    const size_t N = 1000;
+    const size_t N = 100;
     const double extent = 16;
 
-    const double eps = 1E-3; 
+    const double eps = 1E-1; 
     const size_t order = ceil(log(1/eps) / log(2)); 
     const size_t seed = 42; 
     srand(seed); 
@@ -46,7 +46,7 @@ int main(int argc, char *argv[]) {
     const Vec center2 = 2 * extent * unit_1;  // Multipole expansion 2
     const Vec se_center = 2 * extent * unit_2;  // center of shifted multipole expansion
     const Vec le_center{}; // Origin, center of local expansion
-    const Vec sle_center = -0.5 * extent * ones; // Center of shifted local expansion
+    const Vec sle_center = -0.333 * extent * ones; // Center of shifted local expansion
 
     const Vec me_eval_point(6 * extent); 
     const Vec le_eval_point = extent/2 * ones; 
@@ -76,28 +76,27 @@ int main(int argc, char *argv[]) {
 
     // Compute reference values directly: 
     const double me_pot_ref = 
-        evaluateInteraction<Vec, Src, double>(sources1, me_eval_point, EPot) 
-        + evaluateInteraction<Vec, Src, double>(sources2, me_eval_point, EPot);
+        evalScalarInteraction(sources1, me_eval_point, EPot) 
+        + evalScalarInteraction(sources2, me_eval_point, EPot);
 
     const double le_pot_ref = 
-        evaluateInteraction<Vec, Src, double>(sources1, le_eval_point, EPot) 
-        + evaluateInteraction<Vec, Src, double>(sources2, le_eval_point, EPot);
+        evalScalarInteraction(sources1, le_eval_point, EPot) 
+        + evalScalarInteraction(sources2, le_eval_point, EPot);
 
     const Vec me_force_ref = 
-        evaluateInteraction<Vec, Src, Vec>(sources1, me_eval_point, EFrc)
-        + evaluateInteraction<Vec, Src, Vec>(sources2, me_eval_point, EFrc);
+        evalVectorInteraction(sources1, me_eval_point, EFrc)
+        + evalVectorInteraction(sources2, me_eval_point, EFrc);
 
     const Vec le_force_ref = 
-        evaluateInteraction<Vec, Src, Vec>(sources1, le_eval_point, EFrc) 
-        + evaluateInteraction<Vec, Src, Vec>(sources2, le_eval_point, EFrc);
+        evalVectorInteraction(sources1, le_eval_point, EFrc) 
+        + evalVectorInteraction(sources2, le_eval_point, EFrc);
 
     // Set up multipole expansion from sources:
     ME me1(center1, order, sources1); 
     ME me2(center2, order, sources2); 
 
-    std::cout << me1 << "\n";
     // ... and a multipole expansion by shift: 
-    std::vector<ME*> vme{&me1, &me2};
+    std::vector<const ME*> vme{&me1, &me2};
     ME se(se_center, vme); 
 
     // Set up local expansions from multipole expansions: 
@@ -106,9 +105,12 @@ int main(int argc, char *argv[]) {
     // And a shifted local expansion: 
     LE sle(sle_center, le); 
 
-    std::cout << "Reference pot = " << me_pot_ref << ", me pot = " << 
+    std::cout << "Multipole: Reference pot = " << me_pot_ref << ", me pot = " << 
         me1.evaluatePotential(me_eval_point) 
         + me2.evaluatePotential(me_eval_point) << "\n"; 
+    std::cout << "Local: Reference pot = " << le_pot_ref << ", le pot = " << 
+        + le.evaluatePotential(le_eval_point) << std::endl; 
+
 
     double me_pot_error = abs(me1.evaluatePotential(me_eval_point) 
         + me2.evaluatePotential(me_eval_point) - me_pot_ref)/me_pot_ref; 
@@ -129,7 +131,7 @@ int main(int argc, char *argv[]) {
     double sle_force_error = (sle.evaluateForcefield(le_eval_point) 
             - le_force_ref).norm() / le_force_ref.norm(); 
 
-    cout << "Order is " << order << endl;
+    cout << std::scientific << "Eps is " << eps << ", Order is " << order << endl;
 
     cout << "Potential errors:" << endl 
         << "Multipole: " << me_pot_error << endl 
@@ -142,20 +144,6 @@ int main(int argc, char *argv[]) {
         << "Multipole (shifted): " << se_force_error << endl
         << "Local: " << le_force_error << endl
         << "Local (shifted): " << sle_force_error << endl; 
-
-//  cout << "diff local vs local (shifted) = " << 
-//      abs(le.evaluatePotential(le_eval_point) 
-//      - sle.evaluatePotential(le_eval_point)) 
-//      << endl;
-
-//  cout << "Coeff le: "; 
-//  for(auto c : le.coefficients) { 
-//      cout << " " << c.real() << " + " << c.imag() << "i\n"; 
-//  }
-//  cout << endl << "Coeff sle: "; 
-//  for(auto c : sle.coefficients) { 
-//      cout << " " << c.real() << " + " << c.imag() << "i\n"; 
-//  }
 
     bool failure = 
         me_pot_error >= eps 

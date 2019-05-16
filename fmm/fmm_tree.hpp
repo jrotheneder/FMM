@@ -79,10 +79,8 @@ private:
 template<typename Vector, typename Source, std::size_t d>
 struct BalancedFmmTree<Vector, Source, d>::FmmNode: BaseNode {
 
-protected:
     using ME = MultipoleExpansion<Vector, Source, d>;
     using LE = LocalExpansion<Vector, Source, d>;
-public:
 
     ME multipole_expansion; 
     LE local_expansion;
@@ -492,7 +490,8 @@ void BalancedFmmTree<Vector, Source, d>::expandNode(FmmNode* node,
                 child_box_length/2 * AOT::child_center_directions[j];
 
             FmmNode* child = this->nodes + node_offset++; 
-            *child = FmmNode(child_center, child_box_length, node->depth+1, node, order);
+            *child = FmmNode(child_center, child_box_length, 
+                    node->depth+1, node, order);
 
             node->children[j] = child; 
         }

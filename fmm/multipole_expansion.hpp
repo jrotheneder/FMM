@@ -2,20 +2,18 @@
 #include <type_traits> 
 #include <numeric> 
 #include <algorithm> 
+#include <stdexcept> 
 
 #include <boost/math/special_functions/factorials.hpp>
 #include <boost/math/special_functions/spherical_harmonic.hpp>
 #include <boost/math/constants/constants.hpp>
 
+#include "series_expansion.hpp"
+
+#ifndef MULTIPOLE_EXPANSION_H
+#define MULTIPOLE_EXPANSION_H
+
 namespace fmm {
-
-static const double PI = boost::math::constants::pi<double>();
-
-// std::beta requires C++17
-double binomial(std::size_t n, std::size_t k) { // TODO consider a lookup table if slow
-    return 1 / ((n+1) * std::beta(n-k+1, k+1)); // TODO investigate accuracy
-                                                // TODO signal if overflow
-}
 
 template<typename Vector, typename Source, std::size_t d>
 struct MultipoleExpansion {
@@ -29,7 +27,6 @@ struct MultipoleExpansion {
 template<typename Vector, typename Source> 
 struct MultipoleExpansion<Vector, Source, 2> {
 
-    using Complex = std::complex<double>;
     using ME = MultipoleExpansion; 
 
     std::vector<Complex> coefficients; // ME coefficients
@@ -137,105 +134,139 @@ struct MultipoleExpansion<Vector, Source, 2> {
 
 // 3-D Implementation
 template<typename Vector, typename Source> 
-struct MultipoleExpansion<Vector, Source, 3> {
+struct MultipoleExpansion<Vector, Source, 3>: SeriesExpansion<Vector, Source, 3> {
 
-    using Complex = std::complex<double>;
+    using Super = SeriesExpansion<Vector, Source, 3>;
     using ME = MultipoleExpansion; 
-    static constexpr auto sphericalHarmonicY 
-        = boost::math::spherical_harmonic<double, double>;
-
-    int order; 
-    std::vector<Complex> coefficients; // ME coefficients
-    Vector center; // Center of the expansion
 
     MultipoleExpansion() {}
-    MultipoleExpansion(const Vector& center_vec, int order, 
+    MultipoleExpansion(const Vector& center, int order, 
             std::vector<Source>& sources);
-    MultipoleExpansion(const Vector& center_vec, std::vector<ME*>& expansions);
+    MultipoleExpansion(const Vector& center, std::vector<const ME*>& expansions);
 
-    std::vector<double> shift(const Vector& shift) const { return {}; }
+    MultipoleExpansion& operator+=(const MultipoleExpansion& rhs);
 
-    double evaluatePotential(const Vector& eval_point) const;
-    Vector evaluateForcefield(const Vector& eval_point) const;
+    std::vector<Complex> shift(const Vector& shift) const;
 
-    friend std::ostream& operator<<(std::ostream& o, const ME& me) {
+    double evaluatePotential(const Vector& eval_point) const override;
+    Vector evaluateForcefield(const Vector& eval_point) const override;
 
-        unsigned coeff_index = 0; // index of next coefficient to be computed
-        for(int n = 0; n <= me.order; ++n) { 
-            for(int m = -n; m <= n; ++m) {
-                o << n << "\t" << m << "\t" 
-                    << me.coefficients[coeff_index].real() << "\t"
-                    << me.coefficients[coeff_index].imag() << "\n"; 
-                ++coeff_index;
-            }
-        }
-        o << "\n";
-       return o; 
-    }
+    static double sign_fun1(const int k, const int m);
+
 };
 
 template<typename Vector, typename Source> 
 MultipoleExpansion<Vector, Source, 3>::MultipoleExpansion(
         const Vector& center, int order, std::vector<Source>& sources): 
-        order(order), coefficients((1+order)*(1+order)), center(center) {
+        Super(center, order) {
 
     for(std::size_t i = 0; i < sources.size(); ++i) {
 
-        Vector rel_pos = (sources[i].position - center).toSpherical(); 
+        const auto [r, theta, phi]  // Glorious C++17
+            = (sources[i].position - center).toSpherical().data(); 
 
-        double r = rel_pos[0];  // Distance of source to center
-        double theta = rel_pos[1];  
-        double phi = rel_pos[2];  
-
-
-        // compute M_n^m according to [1, (5.15)] However (!)  we use a diff. 
+        // TODO still correct?
+        // compute M_n^m according to [1, (5.15)]. However (!)  we use a diff. 
         // convention (Mathematica, Boost, Wikipedia) than [1] for the harmonics)
+        // which means that Y_n^{-m} from [1, (5.15)] is replaced by conjugate(Y_n^m).
 
+        // TODO switch to more readable ME(n,m) if no perf. penality
         // TODO smarter pow
-        // TODO exploit possible symmetry in coefficients? 
+        // TODO exploit symmetry in coefficients? 
         unsigned coeff_index = 0; // index of next coefficient to be computed
         for(int n = 0; n <= order; ++n) {  
             for(int m = -n; m <= n; ++m) {  
                                                 
-                coefficients[coeff_index++] +=  
-                    sources[i].sourceStrength() * pow(r, n) * 
-                         std::conj(sphericalHarmonicY(n, m, theta, phi));
-                        
+                this->coefficients[coeff_index++] +=  
+                    sources[i].sourceStrength() * pow(r, n) 
+                         * YLM(n, -m, theta, phi);
             }
         }
     }
 }
 
+// TODO consider a constructor from shift_vec + ME& together with operator += 
+// instead
 template<typename Vector, typename Source> 
 MultipoleExpansion<Vector, Source, 3>::MultipoleExpansion(const Vector& center,
-        std::vector<ME*>& expansions): 
-        order(expansions[0]->order), coefficients((order+1)*(order+1)),
-        center(center) { 
+        std::vector<const ME*>& expansions): 
+        Super(center, expansions[0]->order) { 
+        
+    for(const ME* me : expansions) {
+
+        assert(me->coefficients.size() == this->coefficients.size()); // TODO remove
+    
+        Vector shift_vec = me->center - this->center; 
+        std::vector<Complex> shifted_coefficients = me->shift(shift_vec);
+
+        std::transform (this->coefficients.begin(), this->coefficients.end(), 
+            shifted_coefficients.begin(), this->coefficients.begin(), 
+            std::plus<Complex>()
+        );
+    }
+}
+
+template<typename Vector, typename Source>
+MultipoleExpansion<Vector, Source, 3>& MultipoleExpansion<Vector, Source, 3>::
+        operator+=(const MultipoleExpansion& rhs) {
+
+    Super::operator+=(rhs); 
+    return *this;
+}
+
+template<typename Vector, typename Source> 
+std::vector<Complex> MultipoleExpansion<Vector, Source, 3>::shift(
+        const Vector& shift) const {
+
+    std::vector<Complex> shifted_coefficients(this->coefficients.size()); 
+    const ME& outgoing = *this;  // outgoing expansion
+
+    const auto [r, theta, phi] = shift.toSpherical().data(); 
+      
+    // TODO smarter pow
+    // TODO exploit symmetry in coefficients? 
+    unsigned coeff_index = 0; // index of next coefficient to be computed
+//  std::cout << "j" << "\t" << "k" << "\t" << "n" << "\t" << "m" 
+//      << "\t" << "j-n" << "\t" << "k-m" << "\t" << "(j-n)*(j-n+1) + k-m" 
+//      << "\n";
+    for(int j = 0; j <= this->order; ++j) {  
+        for(int k = -j; k <= j; ++k) {  
+                                            
+            Complex M_jk = 0; // Multipole coeff. M_j^k of the shifted expansion
+
+            for(int n = 0; n <= j; ++n) {
+                for(int m = std::max(-n, n+k-j); m <= std::min(n, j+k-n); ++m) {
+                    M_jk += outgoing(j-n, k-m) * sign_fun1(k, m) 
+                        * this->A_coeff(n, m) * this->A_coeff(j-n, k-m) 
+                        / this->A_coeff(j,k) * std::pow(r, n) 
+                        * YLM(n, -m, theta, phi);
+                }
+            }
+
+            shifted_coefficients[coeff_index++] = M_jk;
+        }
+    }
+
+    return shifted_coefficients;
 }
 
 template<typename Vector, typename Source> 
 double MultipoleExpansion<Vector, Source, 3>::evaluatePotential(
         const Vector& eval_point) const { 
 
-    Vector rel_pos = (eval_point - center).toSpherical(); 
+    const auto [r, theta, phi] = (eval_point - this->center).toSpherical().data(); 
     Complex pot = 0; 
 
-    double r = rel_pos[0];  // Distance of source to center
-    double theta = rel_pos[1];  
-    double phi = rel_pos[2];  
-
-    // TODO smarter pow
+    // TODO smarter pow // TODO switch to more readable ME(n,m) if no perf. penality
     unsigned coeff_index = 0; // index of next coefficient to be computed
-    for(int n = 0; n <= order; ++n) { 
-        Complex delta_pot = 0; 
-        for(int m = -n; m <= n; ++m) {
-            delta_pot +=  coefficients[coeff_index++] / pow(r, n+1) 
-                * sphericalHarmonicY(n, m, theta, phi); 
-        }
-        pot += 1./(2*n+1) * delta_pot;
-    }
+    for(int n = 0; n <= this->order; ++n) { 
 
-    pot *= 4 * PI; 
+        for(int m = -n; m <= n; ++m) {
+            pot += this->coefficients[coeff_index++] / pow(r, n+1) 
+                //* sphericalHarmonicY(n, m, theta, phi); 
+                * YLM(n, m, theta, phi); 
+        }
+    }
 
     return pot.real(); 
 }
@@ -248,4 +279,29 @@ Vector MultipoleExpansion<Vector, Source, 3>::evaluateForcefield(
     return Vector{}; 
 }
 
+// Implements the function i^(|k|-|m| - |k-m|)
+template<typename Vector, typename Source> 
+double MultipoleExpansion<Vector, Source, 3>::sign_fun1(
+        const int k, const int m) {
+
+    //using namespace std::complex_literals;
+
+    int exponent = std::abs(k) - std::abs(m) - std::abs(k-m); 
+    switch(std::abs(exponent) % 4) {
+        case 0 : return 1; 
+        case 2 : return -1;  
+//      case 1 : return 1i; // These should never occur
+//      case 3 : return -1i; 
+    }
+
+    throw std::logic_error("Exponent in sign_fun1() is not expected to "
+        " be odd. Got input: k = " + std::to_string(k) + ", m = " 
+        + std::to_string(m)+ ", exponent is " + std::to_string(exponent) + "\n"
+        ); 
+
+}
+
+
 } // namespace fmm
+
+# endif
