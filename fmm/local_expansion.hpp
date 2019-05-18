@@ -30,7 +30,7 @@ struct LocalExpansion<Vector, Source, 2>: SeriesExpansion<Vector, Source, 2> {
     LocalExpansion(Vector center_vec, std::size_t order): 
             center({center_vec[0], center_vec[1]}), coefficients(order+1) {}
 
-    LocalExpansion(const Vector& center_vec, std::vector<ME*> expansions):
+    LocalExpansion(const Vector& center_vec, std::vector<const ME*> expansions):
             center({center_vec[0], center_vec[1]}) {
         
         assert(expansions.size() > 0); 
@@ -41,7 +41,7 @@ struct LocalExpansion<Vector, Source, 2>: SeriesExpansion<Vector, Source, 2> {
 
         // Convert the supplied multipole expansions to a local expansion
         // TODO this deserves its own function
-        for(ME* me : expansions) { 
+        for(const ME* me : expansions) { 
             
             Complex a_0 = me->Q; // 0-th coeff of multipole exp.
             Complex z_0 = me->center - this->center; // ME center rel. to this->center
@@ -71,7 +71,7 @@ struct LocalExpansion<Vector, Source, 2>: SeriesExpansion<Vector, Source, 2> {
         }
     }
 
-    LocalExpansion(const Vector& center_vec, LocalExpansion& incoming): 
+    LocalExpansion(const Vector& center_vec, const LocalExpansion& incoming): 
             center({center_vec[0], center_vec[1]}) {
         
         assert(incoming.coefficients.size() > 0); 
@@ -97,7 +97,7 @@ struct LocalExpansion<Vector, Source, 2>: SeriesExpansion<Vector, Source, 2> {
 
     // Shift is the vector (complex number) from the new center to the old
     // center.
-    std::vector<Complex> shift(const Complex shift) { // [(4.21), 1], shift === z0
+    std::vector<Complex> shift(const Complex shift) const { // [(4.21), 1], shift === z0
 
         std::size_t order = coefficients.size();
         std::vector<Complex> shifted_coefficients{coefficients}; 
@@ -173,8 +173,8 @@ struct LocalExpansion<Vector, Source, 3>: SeriesExpansion<Vector, Source, 3> {
     double evaluatePotential(const Vector& eval_point) const override;
     Vector evaluateForcefield(const Vector& eval_point) const override;
 
-    static double sign_fun2(const int k, const int m);
-    static double sign_fun3(const int k, const int m);
+    double sign_fun2(const int k, const int m) const;
+    double sign_fun3(const int k, const int m) const;
 
 };
 
@@ -201,27 +201,49 @@ LocalExpansion<Vector, Source, 3>::LocalExpansion(const Vector& center,
     const auto [r, theta, phi]  
         = (incoming.center - this->center).toSpherical().data(); 
 
-    unsigned coeff_index = 0; // index of next coefficient to be computed
+    const typename Super::YLM_table ylm(2 * this->order, theta, phi); 
+    double* r_pow_table = new double[2 * this->order + 1];  
+
+    r_pow_table[0] = r; 
+    for(int i = 1; i <= 2 * this->order; ++i) { 
+        r_pow_table[i] = r_pow_table[i-1] * r; 
+    }
+
+    //unsigned coeff_index = 0; // index of next coefficient to be computed
     for(int j = 0; j <= this->order; ++j) {
         for(int k = -j; k <= j; ++k) {
 
             Complex L_jk = 0; // Coeff. L_j^k of the created local expansion 
 
-            // TODO precompute pows
+            double A_jk = Super::A_coeff(j, k); // A_j^k
+
             for(int n = 0; n <= this->order; ++n) {
+
                 double sign = n % 2 ? -1 : 1; 
+                double A_jn_mk = Super::A_coeff(j+n, -n-k); // A_{j+n}^{m-k}
+                double A_nm = Super::A_coeff(n, -n);       // A_n^m
+
                 for(int m = -n; m <= n; ++m) {
                     L_jk += incoming(n, m) * sign_fun2(k, m) * sign
-                        * this->A_coeff(n, m) * this->A_coeff(j, k) 
-                        / (this->A_coeff(j+n, m-k) * pow(r, j+n+1)) 
-                        * YLM(j+n, m-k, theta, phi); 
+                        //* Super::A_coeff(n, m) * A_jk
+                        /// (Super::A_coeff(j+n, m-k) 
+                        * A_nm * A_jk / (A_jn_mk
+                        //* pow(r, j+n+1)) 
+                        * r_pow_table[j+n])  
+                        //* YLM(j+n, m-k, theta, phi); 
+                        * ylm(j+n, m-k); 
+
+                    A_nm = Super::A_coeff_next(n, m, A_nm);  
+                    A_jn_mk = Super::A_coeff_next(j+n, m-k, A_jn_mk);  
                 }
             }
 
-            // TODO can switch to operator () without perf. penality? 
-            this->coefficients[coeff_index++] = L_jk;
+            //this->coefficients[coeff_index++] = L_jk; //TODO clear
+            (*this)(j,k) = L_jk;
         }
     }
+
+    delete[] r_pow_table;
 }
 
 template<typename Vector, typename Source>
@@ -301,14 +323,45 @@ double LocalExpansion<Vector, Source, 3>::evaluatePotential(
 
 template<typename Vector, typename Source>
 Vector LocalExpansion<Vector, Source, 3>::evaluateForcefield(
-        const Vector& eval_point) const {
+        const Vector& eval_point) const { 
 
+    const auto [r, theta, phi] = (eval_point - this->center).toSpherical().data(); 
+
+    // Components of the gradient of the potential evaluated in spherical
+    // coordinates (and w.r.t. the spherical coordinate basis) 
+    double force_r = 0;     // \hat r component (radial) of the force
+    double force_theta = 0; // \hat theta component (polar) of the force
+    double force_phi = 0;   // \hat phi component (azimuthal) of the force
+
+    // TODO smarter pow 
+    // TODO switch to more readable ME(n,m) if no perf. penality
+    // TODO symmetry among coeff.
+    // TODO double comp. of YLM (in and outside of d/dtheta), d/phi? 
+    // TODO possible recursion relation for YLM / legendre? 
+    unsigned coeff_index = 1; // index of next coefficient to be computed
+    for(int n = 1; n <= this->order; ++n) { 
+
+        double r_pow = std::pow(r, n-1); 
+
+        for(int m = -n; m <= n; ++m) {
+
+            //Complex ylm_val = YLM(n, m, theta, phi) * r_pow;  
+            const Complex L_nm = this->coefficients[coeff_index++];
+            
+            force_r += r_pow * (double) n * (L_nm * YLM(n, m, theta, phi)).real(); 
+            force_theta += r_pow * (L_nm * YLM_deriv_theta(n, m, theta, phi)).real(); 
+            force_phi += r_pow * (L_nm * YLM_deriv_phi(n, m, theta, phi)).real() 
+                / std::sin(theta); 
+        }
+    }
+
+    return -Vector{{force_r, force_theta, force_phi}}.toCartesianBasis(theta, phi); 
 }
 
 // Implements the function i^(|k-m|-|k|-|m|)
 template<typename Vector, typename Source> 
 double LocalExpansion<Vector, Source, 3>::sign_fun2(
-        const int k, const int m) {
+        const int k, const int m) const {
 
     //using namespace std::complex_literals;
 
@@ -330,7 +383,7 @@ double LocalExpansion<Vector, Source, 3>::sign_fun2(
 // Implements the function i^(|m|-|m-k|-|k|)
 template<typename Vector, typename Source> 
 double LocalExpansion<Vector, Source, 3>::sign_fun3(
-        const int k, const int m) {
+        const int k, const int m) const {
 
     //using namespace std::complex_literals;
 

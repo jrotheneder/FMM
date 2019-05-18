@@ -4,10 +4,6 @@
 #include <algorithm> 
 #include <stdexcept> 
 
-#include <boost/math/special_functions/factorials.hpp>
-#include <boost/math/special_functions/spherical_harmonic.hpp>
-#include <boost/math/constants/constants.hpp>
-
 #include "series_expansion.hpp"
 
 #ifndef MULTIPOLE_EXPANSION_H
@@ -53,11 +49,11 @@ struct MultipoleExpansion<Vector, Source, 2> {
     }
 
     // Construct expansion from other expansions by shifting
-    MultipoleExpansion(const Vector& center_vec, std::vector<ME*>& expansions): 
+    MultipoleExpansion(const Vector& center_vec, std::vector<const ME*>& expansions): 
             coefficients(expansions[0]->coefficients.size()), 
             center({center_vec[0], center_vec[1]}), Q(0) {
         
-        for(ME* me : expansions) {
+        for(const ME* me : expansions) {
             Q += me->Q;     
 
             assert(me->coefficients.size() == coefficients.size()); // TODO remove
@@ -226,9 +222,6 @@ std::vector<Complex> MultipoleExpansion<Vector, Source, 3>::shift(
     // TODO smarter pow
     // TODO exploit symmetry in coefficients? 
     unsigned coeff_index = 0; // index of next coefficient to be computed
-//  std::cout << "j" << "\t" << "k" << "\t" << "n" << "\t" << "m" 
-//      << "\t" << "j-n" << "\t" << "k-m" << "\t" << "(j-n)*(j-n+1) + k-m" 
-//      << "\n";
     for(int j = 0; j <= this->order; ++j) {  
         for(int k = -j; k <= j; ++k) {  
                                             
@@ -276,7 +269,38 @@ template<typename Vector, typename Source>
 Vector MultipoleExpansion<Vector, Source, 3>::evaluateForcefield(
         const Vector& eval_point) const { 
 
-    return Vector{}; 
+    const auto [r, theta, phi] = (eval_point - this->center).toSpherical().data(); 
+
+    // Components of the gradient of the potential evaluated in spherical
+    // coordinates (and w.r.t. the spherical coordinate basis) 
+    double force_r = 0;     // \hat r component (radial) of the force
+    double force_theta = 0; // \hat theta component (polar) of the force
+    double force_phi = 0;   // \hat phi component (azimuthal) of the force
+
+    // TODO smarter pow 
+    // TODO switch to more readable ME(n,m) if no perf. penality
+    // TODO symmetry among coeff.
+    // TODO double comp. of YLM (in and outside of d/dtheta), d/phi? 
+    // TODO possible recursion relation for YLM / legendre? 
+    unsigned coeff_index = 0; // index of next coefficient to be computed
+
+    for(int n = 0; n <= this->order; ++n) { 
+
+        double r_pow = 1/std::pow(r, n+2); 
+
+        for(int m = -n; m <= n; ++m) {
+
+            //Complex ylm_val = YLM(n, m, theta, phi) * r_pow;  
+            const Complex M_nm = this->coefficients[coeff_index++];
+            
+            force_r -= r_pow * (double) (n + 1) * (M_nm * YLM(n, m, theta, phi)).real(); 
+            force_theta += r_pow * (M_nm * YLM_deriv_theta(n, m, theta, phi)).real(); 
+            force_phi += r_pow * (M_nm * YLM_deriv_phi(n, m, theta, phi)).real() 
+                / std::sin(theta); 
+        }
+    }
+
+    return -Vector{{force_r, force_theta, force_phi}}.toCartesianBasis(theta, phi); 
 }
 
 // Implements the function i^(|k|-|m| - |k-m|)

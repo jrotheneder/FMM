@@ -1,3 +1,5 @@
 *.dat
 *.o
 *.swp
+*.nb
+*.out

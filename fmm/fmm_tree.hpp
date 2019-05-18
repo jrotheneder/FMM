@@ -74,6 +74,9 @@ private:
         std::size_t& leaf_offset);
     void distributeSources();
     void computeNodeNeighbourhood(FmmNode* node); 
+
+    void localToLocal(FmmNode& node);
+    void multipoleToLocal(FmmNode& node);
 };
 
 template<typename Vector, typename Source, std::size_t d>
@@ -123,7 +126,7 @@ BalancedFmmTree<Vector, Source, d>::BalancedFmmTree(std::vector<Source>& sources
     static_assert(d <= 3lu); 
 
     // Determine expansion order, tree height, numbers of nodes and leaves
-    order =(ceil(log(1/eps) / log(2))), 
+    order = (ceil(log(1/eps) / log(2))), 
     this->height = ceil(log((double)sources.size()/sources_per_cell) 
         / log(AOT::n_children));
 
@@ -137,7 +140,8 @@ BalancedFmmTree<Vector, Source, d>::BalancedFmmTree(std::vector<Source>& sources
     Vector center = 0.5 * (lower_bounds + upper_bounds); 
 
     // Build tree: 
-    std::cout << "n_nodes = " << n_nodes << std::endl;
+    std::cout << "Tree has height " << this->height << ", " << n_nodes << 
+        " nodes, " << n_leaves << " leaves, order is p = " << order << "\n";
 
     if(this->height == 0) { // Degenerate tree: short circuit construction
 
@@ -187,7 +191,7 @@ BalancedFmmTree<Vector, Source, d>::BalancedFmmTree(std::vector<Source>& sources
     for(int64_t i = n_nodes - 1; i >= 0; --i) { // TODO: parallelizable within levels
 
         FmmNode& node = this->nodes[i]; 
-        std::vector<ME*> children_expansions;
+        std::vector<const ME*> children_expansions;
 
         for(BaseNode* child : node.children) {
             children_expansions.push_back(
@@ -199,49 +203,71 @@ BalancedFmmTree<Vector, Source, d>::BalancedFmmTree(std::vector<Source>& sources
 
     }
     
+    // TODO convert this into for-loops and OpenMP' it
     // Downward pass: Convert multipole expansions to local expansions
-    traverseBFSCore(
-        [](FmmNode* node) -> void {
 
-            FmmNode * parent = static_cast<FmmNode*>(node->parent);
+    std::size_t n_nodes_at_depth = std::pow(AOT::n_children, 2); 
+    for(std::size_t depth = 2; depth < this->height; ++depth) {
+
+        std::size_t offset = (std::pow(AOT::n_children, depth) - 1) 
+            / (AOT::n_children - 1);
+
+        #pragma omp parallel for
+        for(std::size_t i = 0; i < n_nodes_at_depth; i++) {
+            auto t1 = std::chrono::high_resolution_clock::now();
+
+            FmmNode& current_node = nodes[offset + i]; 
+
+            // Parent LEs and neighbour MEs have to have been built by now
+            assert(current_node.multipole_expansion.coefficients.size() > 0); 
+            assert(current_node.local_expansion.coefficients.size() > 0);   
+
+            this->localToLocal(current_node);
+            this->multipoleToLocal(current_node);
+
+            auto t2 = std::chrono::high_resolution_clock::now();
+            std::cout << offset + i << "\t" <<  chrono_duration(t2-t1)  << "\n";
+
+        }
+    }
+
+    #pragma omp parallel for 
+    for(std::size_t leaf_index = 0; leaf_index < n_leaves; ++leaf_index) {
+
+        auto t1 = std::chrono::high_resolution_clock::now();
+
+        FmmNode& current_node = leaves[leaf_index]; 
+
+        // Parent LEs and neighbour MEs have to have been built by now
+        assert(current_node.multipole_expansion.coefficients.size() > 0); 
+        assert(current_node.local_expansion.coefficients.size() > 0);   
+
+        this->localToLocal(current_node);
+        this->multipoleToLocal(current_node);
+
+        auto t2 = std::chrono::high_resolution_clock::now();
+        std::cout << leaf_index << "\t" <<  chrono_duration(t2-t1)  << "\n";
+    }
+    
+
+
+    
+    /*
+    traverseBFSCore(
+        [&counter, this](FmmNode* node) -> void {
+            auto t1 = std::chrono::high_resolution_clock::now();
 
             // Parent LEs and neighbour MEs have to have been built by now
             assert(node->multipole_expansion.coefficients.size() > 0); 
             assert(node->local_expansion.coefficients.size() > 0);   
             
-            if(parent) { // Shift parent LE to child
-                assert(parent->local_expansion.coefficients.size() > 0);   
-                node->local_expansion = LE(node->center, parent->local_expansion);
-            }
+            this->localToLocal(node);
+            this->multipoleToLocal(node);
 
-            // TODO parallelizable within levels or globally (with locks during +=) 
-            std::vector<ME*> incoming; 
-            for(FmmNode* interaction_partner : node->interaction_list) {
-                incoming.push_back(&interaction_partner->multipole_expansion);  
-            }
-
-            if(incoming.size() > 0) {
-                node->local_expansion += LE(node->center, incoming); 
-            }
+            auto t2 = std::chrono::high_resolution_clock::now();
+            std::cout << counter++ << "\t" <<  chrono_duration(t2-t1)  << "\n";
         }
     ); 
-
-    /*
-    std::vector<unsigned long> morton(leaves.size()); 
-    std::vector<unsigned> flatx(leaves.size()); 
-    std::vector<unsigned> flaty(leaves.size()); 
-
-    std::for_each(leaves.begin(), leaves.end(),
-        [&](FmmLeaf* leaf) -> void {
-            auto ind = this->getLeafBoxIndices(leaf->center);
-            morton.push_back(this->getMortonIndex(ind));
-            std::cout << this->getMortonIndex(ind) << "\n";
-        }
-    );
-
-    VectorToFile(morton, "morton.dat"); 
-    VectorToFile(flatx, "flatx.dat"); 
-    VectorToFile(flaty, "flaty.dat"); 
     */
 }
 
@@ -549,6 +575,31 @@ void BalancedFmmTree<Vector, Source, d>::distributeSources() {
     }
      
     delete[] leaf_source_vectors; 
+}
+
+template<typename Vector, typename Source, std::size_t d>
+void BalancedFmmTree<Vector, Source, d>::localToLocal(FmmNode& node) {
+ 
+    FmmNode * parent = static_cast<FmmNode*>(node.parent);
+
+    if(parent) { // Shift parent LE to child
+        assert(parent->local_expansion.coefficients.size() > 0);   
+        node.local_expansion += LE(node.center, parent->local_expansion);
+    }
+}
+
+
+template<typename Vector, typename Source, std::size_t d>
+void BalancedFmmTree<Vector, Source, d>::multipoleToLocal(FmmNode& node) {
+ 
+    std::vector<const ME*> incoming; 
+    for(FmmNode* interaction_partner : node.interaction_list) {
+        incoming.push_back(&interaction_partner->multipole_expansion);  
+    }
+
+    if(incoming.size() > 0) {
+        node.local_expansion += LE(node.center, incoming); 
+    }
 }
 
 } // namespace fmm

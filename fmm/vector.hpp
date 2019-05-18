@@ -33,7 +33,7 @@ struct Vector {
         return Vector{scaled_coords};
     }
 
-    Vector operator-() const { return -1 * *this; }
+    Vector operator-() const { return -1. * *this; }
     Vector operator-(const Vector& rhs) const { return *this + (-rhs); }
     Vector& operator+=(const Vector& rhs) { return *this = *this + rhs; }
     Vector& operator-=(const Vector& rhs) { return *this = *this - rhs; }
@@ -70,8 +70,10 @@ struct Vector {
         }
     } 
 
-    // Generalized spherical coordinates: returns vector of (r, φ) if d == 2, 
-    // (r, θ, φ) if d == 3 and is not implemented for other cases.
+    // Returns vector of  (r, φ) of polar coordinates from vector (x, y) of
+    // cartesian coordinates if d == 2, vector of (r, θ, φ) spherical 
+    // from vector (x, y, z) of cartesian coordinates if d == 3 and is not 
+    // implemented for other cases.
     Vector toSpherical() const {
 
         if constexpr (d == 2) {
@@ -95,8 +97,10 @@ struct Vector {
         }
     }
 
-    // Returns vector of (x, y) from vector (r, φ) if d == 2, vector of (x, y, z) 
-    // from vector (r, θ, φ) if d == 3 and is not implemented for other cases.
+    // Returns vector of (x, y) cartesian coordinates from vector (r, φ) of 
+    // polar coordinates if d == 2, vector of (x, y, z) cartesian 
+    // from vector (r, θ, φ) of spherical coordinates if d == 3 and is not 
+    // implemented for other cases.
     Vector toCartesian() const {
 
         if constexpr (d == 2) {
@@ -122,6 +126,35 @@ struct Vector {
         else {
             throw std::logic_error("toCartesian() implemented only "
                 "for 2 & 3 dimensions.");
+        }
+    }
+
+    // Transforms components (v_r, v_t, v_p) of a vector (*this) given w.r.t. 
+    // the basis vectors
+    // \hat r     = Cos(phi) Sin(theta)     Sin(theta) Sin(phi) 	Cos(theta)
+    // \hat theta = Cos(theta) Cos(phi)	    Cos(theta) Sin(phi)	    -Sin(theta)
+    // \hat phi   = -Sin(phi)               Cos(phi)	            0
+    // into components (x,y,z) of the cartesian standard basis
+    Vector toCartesianBasis(const double theta, const double phi) const {
+
+        if constexpr(d == 3) {
+
+            const double sin_theta = std::sin(theta);  
+            const double cos_theta = std::cos(theta);  
+            const double sin_phi = std::sin(phi);  
+            const double cos_phi = std::cos(phi);  
+
+            return Vector{{ 
+                sin_theta * cos_phi * coords[0] + cos_theta * cos_phi * coords[1] 
+                    - sin_phi * coords[2],
+                sin_theta * sin_phi * coords[0] + cos_theta * sin_phi * coords[1] 
+                    + cos_phi * coords[2],
+                cos_theta * coords[0] - sin_theta * coords[1] 
+            }};
+        }
+        else {
+            throw std::logic_error("toCartesianBasis() implemented only "
+                "for 3 dimensions.");
         }
     }
 };

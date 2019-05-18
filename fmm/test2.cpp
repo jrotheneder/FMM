@@ -7,6 +7,8 @@
 #include <cmath> 
 #include <chrono> 
 
+#include <valgrind/callgrind.h> 
+
 #include "debugging.hpp" 
 #include "vector.hpp" 
 
@@ -19,9 +21,9 @@ int main(int argc, char *argv[]) {
     
 
     const size_t N = 1000;
-    const size_t items_per_leaf = 50; 
+    const size_t items_per_leaf = 100; 
     const size_t d = 3;
-    const double eps = 1E-5; 
+    const double eps = 1E-3; 
     const size_t order = ceil(log(1/eps) / log(2)); 
     const size_t seed = 42; 
     srand(seed); 
@@ -51,10 +53,18 @@ int main(int argc, char *argv[]) {
         sources.push_back(src); 
     }
 
+    auto t1 = std::chrono::high_resolution_clock::now();
+
+    CALLGRIND_TOGGLE_COLLECT;
     BalancedFmmTree<Vec, Src, d>q(sources, items_per_leaf, eps);
+    CALLGRIND_TOGGLE_COLLECT;
+
+    auto t2 = std::chrono::high_resolution_clock::now();
+
     std::cout << "Orthtree height is " << q.getHeight() << ", centered at " <<
         q.getCenter() << " with parent box size = " << q.getBoxLength() <<  std::endl;
-    std::cout << "Order is " << order << std::endl;
+    std::cout << "Tree building took " << chrono_duration(t2-t1) << "s, Order is " 
+        << order << std::endl;
     q.toFile();
 
     Vec eval_point = sources[0].position;  
@@ -64,12 +74,11 @@ int main(int argc, char *argv[]) {
     std::cout << q.evaluateForcefield(eval_point) << std::endl;
     std::cout << evalVectorInteraction(sources, eval_point, EFrc) << std::endl;
 
-    auto t1 = std::chrono::high_resolution_clock::now();
+    t1 = std::chrono::high_resolution_clock::now();
     auto potentials = q.evaluateParticlePotentials(); 
-    auto t2 = std::chrono::high_resolution_clock::now();
+    t2 = std::chrono::high_resolution_clock::now();
     std::cout << "fmm took " << chrono_duration(t2-t1) << std::endl; 
 
-    /*
     t1 = std::chrono::high_resolution_clock::now();
     std::vector<double> ref_potentials(sources.size()); 
     for(std::size_t i = 0; i < sources.size(); ++i) {
@@ -104,7 +113,6 @@ int main(int argc, char *argv[]) {
     std::cout << "Mean abs force deviation: " << 
         std::accumulate(diffs.begin(), diffs.end(), 0.0)/diffs.size() << std::endl;
 
-    */
     return 0;
 
 }
