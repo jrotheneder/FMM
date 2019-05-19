@@ -147,8 +147,6 @@ struct MultipoleExpansion<Vector, Source, 3>: SeriesExpansion<Vector, Source, 3>
     double evaluatePotential(const Vector& eval_point) const override;
     Vector evaluateForcefield(const Vector& eval_point) const override;
 
-    static double sign_fun1(const int k, const int m);
-
 };
 
 template<typename Vector, typename Source> 
@@ -229,7 +227,7 @@ std::vector<Complex> MultipoleExpansion<Vector, Source, 3>::shift(
 
             for(int n = 0; n <= j; ++n) {
                 for(int m = std::max(-n, n+k-j); m <= std::min(n, j+k-n); ++m) {
-                    M_jk += outgoing(j-n, k-m) * sign_fun1(k, m) 
+                    M_jk += outgoing(j-n, k-m) * this->sign_fun1(k, m) 
                         * this->A_coeff(n, m) * this->A_coeff(j-n, k-m) 
                         / this->A_coeff(j,k) * std::pow(r, n) 
                         * YLM(n, -m, theta, phi);
@@ -303,27 +301,6 @@ Vector MultipoleExpansion<Vector, Source, 3>::evaluateForcefield(
     return -Vector{{force_r, force_theta, force_phi}}.toCartesianBasis(theta, phi); 
 }
 
-// Implements the function i^(|k|-|m| - |k-m|)
-template<typename Vector, typename Source> 
-double MultipoleExpansion<Vector, Source, 3>::sign_fun1(
-        const int k, const int m) {
-
-    //using namespace std::complex_literals;
-
-    const int exponent = std::abs(k) - std::abs(m) - std::abs(k-m); 
-    switch(std::abs(exponent) % 4) {
-        case 0 : return 1; 
-        case 2 : return -1;  
-//      case 1 : return 1i; // These should never occur
-//      case 3 : return -1i; 
-    }
-
-    throw std::logic_error("Exponent in sign_fun1() is not expected to "
-        " be odd. Got input: k = " + std::to_string(k) + ", m = " 
-        + std::to_string(m)+ ", exponent is " + std::to_string(exponent) + "\n"
-        ); 
-
-}
 
 
 } // namespace fmm

@@ -20,9 +20,9 @@ using namespace fmm;
 int main(int argc, char *argv[]) {
     
 
-    const size_t N = 1000;
-    const size_t items_per_leaf = 100; 
-    const size_t d = 3;
+    const size_t N = 10000;
+    const size_t items_per_leaf = 10; 
+    const size_t d = 2;
     const double eps = 1E-3; 
     const size_t order = ceil(log(1/eps) / log(2)); 
     const size_t seed = 42; 
@@ -109,6 +109,7 @@ int main(int argc, char *argv[]) {
         forces.begin(), forces.end(), ref_forces.begin(), 
         diffs.begin(), [](Vec a, Vec b) -> double { return (a-b).norm(); } 
     );
+
 
     std::cout << "Mean abs force deviation: " << 
         std::accumulate(diffs.begin(), diffs.end(), 0.0)/diffs.size() << std::endl;

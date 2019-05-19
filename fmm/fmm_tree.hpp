@@ -205,15 +205,14 @@ BalancedFmmTree<Vector, Source, d>::BalancedFmmTree(std::vector<Source>& sources
     
     // Downward pass: Convert multipole expansions to local expansions
 
-    std::size_t n_nodes_at_depth = std::pow(AOT::n_children, 2); 
     for(std::size_t depth = 2; depth < this->height; ++depth) {
 
+        std::size_t n_nodes_at_depth = std::pow(AOT::n_children, depth); 
         std::size_t offset = (std::pow(AOT::n_children, depth) - 1) 
             / (AOT::n_children - 1);
 
         #pragma omp parallel for
         for(std::size_t i = 0; i < n_nodes_at_depth; i++) {
-            auto t1 = std::chrono::high_resolution_clock::now();
 
             FmmNode& current_node = nodes[offset + i]; 
 
@@ -221,11 +220,13 @@ BalancedFmmTree<Vector, Source, d>::BalancedFmmTree(std::vector<Source>& sources
             assert(current_node.multipole_expansion.coefficients.size() > 0); 
             assert(current_node.local_expansion.coefficients.size() > 0);   
 
+            //auto t1 = std::chrono::high_resolution_clock::now();
+
             this->localToLocal(current_node);
             this->multipoleToLocal(current_node);
 
-            auto t2 = std::chrono::high_resolution_clock::now();
-            std::cout << offset + i << "\t" <<  chrono_duration(t2-t1)  << "\n";
+            //auto t2 = std::chrono::high_resolution_clock::now();
+            //std::cout << offset + i << "\t" <<  chrono_duration(t2-t1)  << "\n";
 
         }
     }
@@ -233,7 +234,6 @@ BalancedFmmTree<Vector, Source, d>::BalancedFmmTree(std::vector<Source>& sources
     #pragma omp parallel for 
     for(std::size_t leaf_index = 0; leaf_index < n_leaves; ++leaf_index) {
 
-        auto t1 = std::chrono::high_resolution_clock::now();
 
         FmmNode& current_node = leaves[leaf_index]; 
 
@@ -241,33 +241,14 @@ BalancedFmmTree<Vector, Source, d>::BalancedFmmTree(std::vector<Source>& sources
         assert(current_node.multipole_expansion.coefficients.size() > 0); 
         assert(current_node.local_expansion.coefficients.size() > 0);   
 
+//      auto t1 = std::chrono::high_resolution_clock::now();
+
         this->localToLocal(current_node);
         this->multipoleToLocal(current_node);
 
-        auto t2 = std::chrono::high_resolution_clock::now();
-        std::cout << leaf_index << "\t" <<  chrono_duration(t2-t1)  << "\n";
+//      auto t2 = std::chrono::high_resolution_clock::now();
+//      std::cout << leaf_index << "\t" <<  chrono_duration(t2-t1)  << "\n";
     }
-    
-
-
-    
-    /*
-    traverseBFSCore(
-        [&counter, this](FmmNode* node) -> void {
-            auto t1 = std::chrono::high_resolution_clock::now();
-
-            // Parent LEs and neighbour MEs have to have been built by now
-            assert(node->multipole_expansion.coefficients.size() > 0); 
-            assert(node->local_expansion.coefficients.size() > 0);   
-            
-            this->localToLocal(node);
-            this->multipoleToLocal(node);
-
-            auto t2 = std::chrono::high_resolution_clock::now();
-            std::cout << counter++ << "\t" <<  chrono_duration(t2-t1)  << "\n";
-        }
-    ); 
-    */
 }
 
 template<typename Vector, typename Source, std::size_t d>
@@ -552,7 +533,8 @@ void BalancedFmmTree<Vector, Source, d>::distributeSources() {
         leaf_source_vectors[this->getFlatIndex(indices)]->push_back(sources[k]);
     }
 
-    // Assign the 'buckets' of source to their respective leaves.     std::size_t source_index = 0; //Next pos. in sources to write to
+    // Assign the 'buckets' of source to their respective leaves.     
+    // std::size_t source_index = 0; //Next pos. in sources to write to
     for(std::size_t k = 0; k < n_leaves; k++) {
 
         FmmLeaf& leaf = leaves[k]; 
@@ -581,10 +563,10 @@ void BalancedFmmTree<Vector, Source, d>::localToLocal(FmmNode& node) {
  
     FmmNode * parent = static_cast<FmmNode*>(node.parent);
 
-    if(parent) { // Shift parent LE to child
-        assert(parent->local_expansion.coefficients.size() > 0);   
-        node.local_expansion += LE(node.center, parent->local_expansion);
-    }
+    assert(parent != nullptr);
+    assert(parent->local_expansion.coefficients.size() > 0);   
+
+    node.local_expansion += LE(node.center, parent->local_expansion);
 }
 
 

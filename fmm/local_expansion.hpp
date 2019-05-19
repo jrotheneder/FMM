@@ -173,9 +173,7 @@ struct LocalExpansion<Vector, Source, 3>: SeriesExpansion<Vector, Source, 3> {
     double evaluatePotential(const Vector& eval_point) const override;
     Vector evaluateForcefield(const Vector& eval_point) const override;
 
-    double sign_fun2(const int k, const int m) const;
-    double sign_fun3(const int k, const int m) const;
-
+    static double le_sign_fun2(const int k, const int m);
 };
 
 
@@ -198,50 +196,44 @@ template<typename Vector, typename Source>
 LocalExpansion<Vector, Source, 3>::LocalExpansion(const Vector& center, 
         const ME& incoming): Super(center, incoming.order) {
 
+    LE& self = *this; 
     const auto [r, theta, phi]  
         = (incoming.center - this->center).toSpherical().data(); 
 
-    const typename Super::YlmTable ylm(2 * this->order, theta, phi); 
+    // Precompute powers of r:
     double* r_pow_table = new double[2 * this->order + 1];  
-
     r_pow_table[0] = r; 
     for(int i = 1; i <= 2 * this->order; ++i) { 
         r_pow_table[i] = r_pow_table[i-1] * r; 
     }
 
-    //unsigned coeff_index = 0; // index of next coefficient to be computed
+    // Precomputed values of Y_l^m(theta, phi) & A_l^m 
+    const typename Super::YlmTable sphericalHarmonicY(2*this->order, theta, phi); 
+    typename Super::template AlmTable& A = Super::alm_table;
+    typename Super::template SignTable& sign2 = Super::sign_fun2_table;
+
     for(int j = 0; j <= this->order; ++j) {
         for(int k = -j; k <= j; ++k) {
 
             Complex L_jk = 0; // Coeff. L_j^k of the created local expansion 
-
-////        double A_jk = Super::A_coeff(j, k); // A_j^k
+            double A_jk = A(j,k) ; // A_j^k
 
             for(int n = 0; n <= this->order; ++n) {
 
                 double sign = n % 2 ? -1 : 1; 
-////            double A_jn_mk = Super::A_coeff(j+n, -n-k); // stores A_{j+n}^{m-k}
-////            double A_nm = Super::A_coeff(n, -n);        // stores A_n^m
+                Complex accumulant = 0; 
 
                 for(int m = -n; m <= n; ++m) {
-                    L_jk += incoming(n, m) * sign_fun2(k, m) * sign
-                        //* Super::A_coeff(n, m) * A_jk
-                        /// (Super::A_coeff(j+n, m-k) 
-////                    * A_nm * A_jk / (A_jn_mk
-                        * this->alm_table(n,m) * this->alm_table(j,k) 
-                        / (this->alm_table(j+n, m-k) 
-                        //* pow(r, j+n+1)) 
-                        * r_pow_table[j+n])  
-                        //* YLM(j+n, m-k, theta, phi); 
-                        * ylm(j+n, m-k); 
-
-////                A_nm = Super::A_coeff_next(n, m, A_nm);  
-////                A_jn_mk = Super::A_coeff_next(j+n, m-k, A_jn_mk);  
+                    accumulant += sign2(k, m) * A(n,m) 
+                        / ( A(j+n, m-k) * r_pow_table[j+n])
+                        * (incoming(n, m) * sphericalHarmonicY(j+n, m-k)); 
                 }
+
+                L_jk += sign * accumulant;
             }
 
-            //this->coefficients[coeff_index++] = L_jk; //TODO clear
-            (*this)(j,k) = L_jk;
+            L_jk *= A_jk;
+            self(j,k) = L_jk;
         }
     }
 
@@ -286,7 +278,7 @@ std::vector<Complex> LocalExpansion<Vector, Source, 3>::shift(
             for(int n = j; n <= this->order; ++n) {
                 double sign = (n + j) % 2 ? -1 : 1; 
                 for(int m = std::max(-n, k+j-n); m <= std::min(n, k+n-j); ++m) {
-                    L_jk += outgoing(n, m) * sign_fun3(k, m) * sign
+                    L_jk += outgoing(n, m) * this->sign_fun3(k, m) * sign
                         * this->A_coeff(n-j, m-k) * this->A_coeff(j, k) 
                         / this->A_coeff(n,m) * std::pow(r, n - j) 
                         * YLM(n - j, m - k, theta, phi);
@@ -360,18 +352,16 @@ Vector LocalExpansion<Vector, Source, 3>::evaluateForcefield(
     return -Vector{{force_r, force_theta, force_phi}}.toCartesianBasis(theta, phi); 
 }
 
-// Implements the function i^(|k-m|-|k|-|m|)
-template<typename Vector, typename Source> 
-double LocalExpansion<Vector, Source, 3>::sign_fun2(
-        const int k, const int m) const {
 
-    //using namespace std::complex_literals;
+// Implements the function i^(|k-m|-|k|-|m|) for k, m integers
+template<typename Vector, typename Source> 
+double LocalExpansion<Vector, Source, 3>::le_sign_fun2(
+        const int k, const int m) {
 
     const int exponent = std::abs(k-m) - std::abs(k) - std::abs(m); 
-    switch(exponent % 4) {
+    switch(std::abs(exponent) % 4) {
         case 0  : return 1; 
         case 2  : return -1;  
-        case -2 : return -1; 
     }
 
     throw std::logic_error("Exponent in sign_fun2() is not expected to "
@@ -379,25 +369,6 @@ double LocalExpansion<Vector, Source, 3>::sign_fun2(
         + std::to_string(m)+ ", exponent is " + std::to_string(exponent) + "\n"
         ); 
 
-}
-
-// Implements the function i^(|m|-|m-k|-|k|)
-template<typename Vector, typename Source> 
-double LocalExpansion<Vector, Source, 3>::sign_fun3(
-        const int k, const int m) const {
-
-    //using namespace std::complex_literals;
-
-    const int exponent = std::abs(m) - std::abs(m-k) - std::abs(k); 
-    switch(std::abs(exponent) % 4) {
-        case 0 : return 1; 
-        case 2 : return -1;  
-    }
-
-    throw std::logic_error("Exponent in sign_fun3() is not expected to "
-        " be odd. Got input: k = " + std::to_string(k) + ", m = " 
-        + std::to_string(m)+ ", exponent is " + std::to_string(exponent) + "\n"
-        ); 
 }
 
 } // namespace fmm
