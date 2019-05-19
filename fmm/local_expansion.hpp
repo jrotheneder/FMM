@@ -201,7 +201,7 @@ LocalExpansion<Vector, Source, 3>::LocalExpansion(const Vector& center,
     const auto [r, theta, phi]  
         = (incoming.center - this->center).toSpherical().data(); 
 
-    const typename Super::YLM_table ylm(2 * this->order, theta, phi); 
+    const typename Super::YlmTable ylm(2 * this->order, theta, phi); 
     double* r_pow_table = new double[2 * this->order + 1];  
 
     r_pow_table[0] = r; 
@@ -215,26 +215,28 @@ LocalExpansion<Vector, Source, 3>::LocalExpansion(const Vector& center,
 
             Complex L_jk = 0; // Coeff. L_j^k of the created local expansion 
 
-            double A_jk = Super::A_coeff(j, k); // A_j^k
+////        double A_jk = Super::A_coeff(j, k); // A_j^k
 
             for(int n = 0; n <= this->order; ++n) {
 
                 double sign = n % 2 ? -1 : 1; 
-                double A_jn_mk = Super::A_coeff(j+n, -n-k); // A_{j+n}^{m-k}
-                double A_nm = Super::A_coeff(n, -n);       // A_n^m
+////            double A_jn_mk = Super::A_coeff(j+n, -n-k); // stores A_{j+n}^{m-k}
+////            double A_nm = Super::A_coeff(n, -n);        // stores A_n^m
 
                 for(int m = -n; m <= n; ++m) {
                     L_jk += incoming(n, m) * sign_fun2(k, m) * sign
                         //* Super::A_coeff(n, m) * A_jk
                         /// (Super::A_coeff(j+n, m-k) 
-                        * A_nm * A_jk / (A_jn_mk
+////                    * A_nm * A_jk / (A_jn_mk
+                        * this->alm_table(n,m) * this->alm_table(j,k) 
+                        / (this->alm_table(j+n, m-k) 
                         //* pow(r, j+n+1)) 
                         * r_pow_table[j+n])  
                         //* YLM(j+n, m-k, theta, phi); 
                         * ylm(j+n, m-k); 
 
-                    A_nm = Super::A_coeff_next(n, m, A_nm);  
-                    A_jn_mk = Super::A_coeff_next(j+n, m-k, A_jn_mk);  
+////                A_nm = Super::A_coeff_next(n, m, A_nm);  
+////                A_jn_mk = Super::A_coeff_next(j+n, m-k, A_jn_mk);  
                 }
             }
 
@@ -365,12 +367,11 @@ double LocalExpansion<Vector, Source, 3>::sign_fun2(
 
     //using namespace std::complex_literals;
 
-    int exponent = std::abs(k-m) - std::abs(k) - std::abs(m); 
-    switch(std::abs(exponent) % 4) {
-        case 0 : return 1; 
-        case 2 : return -1;  
-//      case 1 : return 1i; // These should never occur
-//      case 3 : return -1i; 
+    const int exponent = std::abs(k-m) - std::abs(k) - std::abs(m); 
+    switch(exponent % 4) {
+        case 0  : return 1; 
+        case 2  : return -1;  
+        case -2 : return -1; 
     }
 
     throw std::logic_error("Exponent in sign_fun2() is not expected to "
@@ -387,12 +388,10 @@ double LocalExpansion<Vector, Source, 3>::sign_fun3(
 
     //using namespace std::complex_literals;
 
-    int exponent = std::abs(m) - std::abs(m-k) - std::abs(k); 
+    const int exponent = std::abs(m) - std::abs(m-k) - std::abs(k); 
     switch(std::abs(exponent) % 4) {
         case 0 : return 1; 
         case 2 : return -1;  
-//      case 1 : return 1i; // These should never occur
-//      case 3 : return -1i; 
     }
 
     throw std::logic_error("Exponent in sign_fun3() is not expected to "

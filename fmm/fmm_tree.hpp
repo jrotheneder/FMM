@@ -203,7 +203,6 @@ BalancedFmmTree<Vector, Source, d>::BalancedFmmTree(std::vector<Source>& sources
 
     }
     
-    // TODO convert this into for-loops and OpenMP' it
     // Downward pass: Convert multipole expansions to local expansions
 
     std::size_t n_nodes_at_depth = std::pow(AOT::n_children, 2); 

@@ -72,15 +72,17 @@ struct SeriesExpansion<Vector, Source, 2> {
 template<typename Vector, typename Source>
 struct SeriesExpansion<Vector, Source, 3> {
 
-    struct YLM_table;
+    struct YlmTable;
+    struct AlmTable;
+
+    static AlmTable alm_table; 
 
     int order; 
     Vector center; // Center of the expansion
     std::vector<Complex> coefficients; // ME coefficients
 
     SeriesExpansion(): order(), center(), coefficients() {}
-    SeriesExpansion(const Vector& center, int order): order(order), center(center),
-        coefficients((1+order)*(1+order)) {}
+    SeriesExpansion(const Vector& center, int order);
 
     SeriesExpansion& operator+=(const SeriesExpansion& rhs);
     Complex& operator()(unsigned n, int m); // Access coefficients M_n^m
@@ -100,7 +102,11 @@ struct SeriesExpansion<Vector, Source, 3> {
 };
 
 template<typename Vector, typename Source>
-struct SeriesExpansion<Vector, Source, 3>::YLM_table {
+typename SeriesExpansion<Vector, Source, 3>::AlmTable 
+    SeriesExpansion<Vector, Source, 3>::alm_table{};
+
+template<typename Vector, typename Source>
+struct SeriesExpansion<Vector, Source, 3>::YlmTable {
 
     const unsigned lmax; 
     const double theta; 
@@ -108,7 +114,7 @@ struct SeriesExpansion<Vector, Source, 3>::YLM_table {
 
     std::vector<Complex> table;
      
-    YLM_table(unsigned lmax, double theta, double phi): lmax(lmax), 
+    YlmTable(unsigned lmax, double theta, double phi): lmax(lmax), 
         theta(theta), phi(phi), table(((lmax + 1)*(lmax + 2))/2)  {
 
         using namespace std::complex_literals;
@@ -150,6 +156,46 @@ struct SeriesExpansion<Vector, Source, 3>::YLM_table {
         //else { return std::conj(table[(l*(l + 1))/2 - m]); }
     }
 };
+
+template<typename Vector, typename Source>
+struct SeriesExpansion<Vector, Source, 3>::AlmTable {
+
+    int max_order;
+    std::vector<double> table; 
+
+    AlmTable(int order = 0): max_order(order) {
+        refresh(order); 
+    }
+
+    void refresh(int order) {
+
+        max_order = 2 * order;
+        table.resize((max_order+1)*(max_order+1));
+
+        unsigned coeff_index = 0;
+        for(int l = 0; l <= max_order; ++l) {
+            double A_lm = A_coeff(l, -l);  
+            for(int m = -l; m <= l; ++m) {
+                table[coeff_index++] = A_lm;
+                A_lm = A_coeff_next(l, m, A_lm);  
+            }
+        }
+    }
+
+    const double& operator()(unsigned l, int m) const {
+        return table.at(l*(l+1) + m);
+    }
+
+};
+
+template<typename Vector, typename Source>
+SeriesExpansion<Vector, Source, 3>::SeriesExpansion(const Vector& center, 
+        int order): order(order), center(center), 
+        coefficients((1+order)*(1+order)) {
+    
+    if(order > alm_table.max_order) { alm_table.refresh(order); }
+      
+}
 
 template<typename Vector, typename Source>
 SeriesExpansion<Vector, Source, 3>& SeriesExpansion<Vector, Source, 3>::
@@ -207,14 +253,13 @@ std::ostream& operator<<(std::ostream& o, SeriesExpansion<Vector, Source, 3>& me
 
 // Implements the function A_n^m := (-1)^n / sqrt((n-m)! (n+m)!) [(5.23), 1]
 template<typename Vector, typename Source> 
-double SeriesExpansion<Vector, Source, 3>::A_coeff(const int n, const int m) {
+double SeriesExpansion<Vector, Source, 3>::A_coeff(const int n, 
+        const int m) {
 
     if(n < 0) {
         throw std::logic_error("Argument n in A_coeff is expected "
             "to be nonnegative."); 
     }
-
-    // TODO remove
 
     return (n % 2 ? -1 : 1) / std::sqrt(factorial(n-m) * factorial(n+m));
 }
@@ -228,7 +273,7 @@ double SeriesExpansion<Vector, Source, 3>::A_coeff_next(const int n,
 //  // TODO remove
 //  if(n < 0) {
 //      throw std::logic_error("Argument n in A_coeff is expected "
-//          "to be nonnegative."); 
+//         "to be nonnegative."); 
 //  }
 
     return std::sqrt((double)(n-m) / (n+m+1)) * A_nm;

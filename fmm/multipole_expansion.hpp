@@ -310,7 +310,7 @@ double MultipoleExpansion<Vector, Source, 3>::sign_fun1(
 
     //using namespace std::complex_literals;
 
-    int exponent = std::abs(k) - std::abs(m) - std::abs(k-m); 
+    const int exponent = std::abs(k) - std::abs(m) - std::abs(k-m); 
     switch(std::abs(exponent) % 4) {
         case 0 : return 1; 
         case 2 : return -1;  
