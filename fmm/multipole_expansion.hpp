@@ -177,33 +177,29 @@ MultipoleExpansion<Vector, Source, 3>::MultipoleExpansion(
         const Vector& center, int order, std::vector<Source>& sources): 
         Super(center, order) {
 
+    ME& self = *this; 
+
     for(std::size_t i = 0; i < sources.size(); ++i) {
 
         const auto [r, theta, phi]  // Glorious C++17
             = (sources[i].position - center).toSpherical().data(); 
 
-        // TODO still correct?
-        // compute M_n^m according to [1, (5.15)]. However (!)  we use a diff. 
-        // convention (Mathematica, Boost, Wikipedia) than [1] for the harmonics)
-        // which means that Y_n^{-m} from [1, (5.15)] is replaced by conjugate(Y_n^m).
+        // Precomputed values of Y_l^m(theta, phi) 
+        const typename Super::YlmTable sphericalHarmonicY(this->order, theta, phi); 
 
-        // TODO switch to more readable ME(n,m) if no perf. penality
-        // TODO smarter pow
-        // TODO exploit symmetry in coefficients? 
-        unsigned coeff_index = 0; // index of next coefficient to be computed
+        double r_pow = 1; 
         for(int n = 0; n <= order; ++n) {  
             for(int m = -n; m <= n; ++m) {  
                                                 
-                this->coefficients[coeff_index++] +=  
-                    sources[i].sourceStrength() * pow(r, n) 
-                         * YLM(n, -m, theta, phi);
+                self(n,m) += sources[i].sourceStrength() * r_pow
+                        * sphericalHarmonicY(n, -m);
             }
+
+            r_pow *= r; 
         }
     }
 }
 
-// TODO consider a constructor from shift_vec + ME& together with operator += 
-// instead
 template<typename Vector, typename Source> 
 MultipoleExpansion<Vector, Source, 3>::MultipoleExpansion(const Vector& center,
         std::vector<const ME*>& expansions): 
@@ -239,9 +235,19 @@ std::vector<Complex> MultipoleExpansion<Vector, Source, 3>::shift(
     const ME& outgoing = *this;  // outgoing expansion
 
     const auto [r, theta, phi] = shift.toSpherical().data(); 
+
+    // Precompute powers of r:
+    double* r_pow_table = new double[this->order + 1];  
+    r_pow_table[0] = 1; 
+    for(int i = 1; i <= this->order; ++i) { 
+        r_pow_table[i] = r_pow_table[i-1] * r; 
+    }
+
+    // Precomputed values of Y_l^m(theta, phi) & A_l^m 
+    const typename Super::YlmTable sphericalHarmonicY(this->order, theta, phi); 
+    typename Super::template AlmTable& A = Super::alm_table;
+    typename Super::template SignTable& sign1 = Super::sign_fun1_table;
       
-    // TODO smarter pow
-    // TODO exploit symmetry in coefficients? 
     unsigned coeff_index = 0; // index of next coefficient to be computed
     for(int j = 0; j <= this->order; ++j) {  
         for(int k = -j; k <= j; ++k) {  
@@ -249,17 +255,23 @@ std::vector<Complex> MultipoleExpansion<Vector, Source, 3>::shift(
             Complex M_jk = 0; // Multipole coeff. M_j^k of the shifted expansion
 
             for(int n = 0; n <= j; ++n) {
+
+                Complex accumulant = 0; 
+
                 for(int m = std::max(-n, n+k-j); m <= std::min(n, j+k-n); ++m) {
-                    M_jk += outgoing(j-n, k-m) * this->sign_fun1(k, m) 
-                        * this->A_coeff(n, m) * this->A_coeff(j-n, k-m) 
-                        / this->A_coeff(j,k) * std::pow(r, n) 
-                        * YLM(n, -m, theta, phi);
+                    M_jk += sign1(k, m) * A(n, m) * A(j-n, k-m)     
+                        * (outgoing(j-n, k-m) * sphericalHarmonicY(n, -m));
                 }
+
+                M_jk += accumulant * r_pow_table[n];
             }
 
-            shifted_coefficients[coeff_index++] = M_jk;
+
+            shifted_coefficients[coeff_index++] = M_jk / A(j,k);
         }
     }
+
+    delete[] r_pow_table; 
 
     return shifted_coefficients;
 }

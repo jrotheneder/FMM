@@ -243,7 +243,7 @@ LocalExpansion<Vector, Source, 3>::LocalExpansion(const Vector& center,
 
                 for(int m = -n; m <= n; ++m) {
                     accumulant += sign2(k, m) * A(n,m) 
-                        / ( A(j+n, m-k) * r_pow_table[j+n])
+                        / (A(j+n, m-k) * r_pow_table[j+n])
                         * (incoming(n, m) * sphericalHarmonicY(j+n, m-k)); 
                 }
 
@@ -281,12 +281,22 @@ std::vector<Complex> LocalExpansion<Vector, Source, 3>::shift(
         const Vector& shift) const {
 
     std::vector<Complex> shifted_coefficients(this->coefficients.size()); 
-    const LE& outgoing = *this;  // outgoing expansion
+    const LE& outgoing = *this; // outgoing expansion
 
     const auto [r, theta, phi] = shift.toSpherical().data(); 
+
+    // Precompute powers of r:
+    double* r_pow_table = new double[this->order + 1];  
+    r_pow_table[0] = 1; 
+    for(int i = 1; i <= this->order; ++i) { 
+        r_pow_table[i] = r_pow_table[i-1] * r; 
+    }
       
-    // TODO smarter pow
-    // TODO exploit symmetry in coefficients? 
+    // Precomputed values of Y_l^m(theta, phi) & A_l^m 
+    const typename Super::YlmTable sphericalHarmonicY(2 * this->order, theta, phi); 
+    typename Super::template AlmTable& A = Super::alm_table;
+    typename Super::template SignTable& sign3 = Super::sign_fun3_table;
+
     unsigned coeff_index = 0; // index of next coefficient to be computed
     for(int j = 0; j <= this->order; ++j) {  
         for(int k = -j; k <= j; ++k) {  
@@ -294,18 +304,24 @@ std::vector<Complex> LocalExpansion<Vector, Source, 3>::shift(
             Complex L_jk = 0; // Multipole coeff. L_j^k of the shifted expansion
 
             for(int n = j; n <= this->order; ++n) {
+
                 double sign = (n + j) % 2 ? -1 : 1; 
+                Complex accumulant = 0; 
+
                 for(int m = std::max(-n, k+j-n); m <= std::min(n, k+n-j); ++m) {
-                    L_jk += outgoing(n, m) * this->sign_fun3(k, m) * sign
-                        * this->A_coeff(n-j, m-k) * this->A_coeff(j, k) 
-                        / this->A_coeff(n,m) * std::pow(r, n - j) 
-                        * YLM(n - j, m - k, theta, phi);
+                    accumulant += sign3(k, m) * A(n-j, m-k) / A(n,m)  
+                        * (outgoing(n, m) * sphericalHarmonicY(n - j, m - k));
                 }
+
+                L_jk += sign * r_pow_table[n - j] * accumulant;
+
             }
 
-            shifted_coefficients[coeff_index++] = L_jk;
+            shifted_coefficients[coeff_index++] = A(j, k) * L_jk;
         }
     }
+
+    delete[] r_pow_table; 
 
     return shifted_coefficients;
 }
@@ -314,20 +330,18 @@ template<typename Vector, typename Source>
 double LocalExpansion<Vector, Source, 3>::evaluatePotential(
         const Vector& eval_point) const {
  
-    const auto [r, theta, phi] = (eval_point - this->center).toSpherical().data(); 
+    const LE& self = *this; 
+    const auto [r, theta, phi] = (eval_point - self.center).toSpherical().data(); 
+    const typename Super::YlmTable sphericalHarmonicY(self.order, theta, phi); 
+
     Complex pot = 0; 
 
-    // TODO smarter pow // TODO switch to more readable ME(n,m) if no perf. penality
-    unsigned coeff_index = 0; // index of next coefficient to be computed
-    for(int n = 0; n <= this->order; ++n) { 
-
+    double r_pow = 1; 
+    for(int n = 0; n <= self.order; ++n) { 
         for(int m = -n; m <= n; ++m) {
-//          std::cout << YLM(n, m, theta, phi) << "\n";
-//          std::cout << this->coefficients[coeff_index] * pow(r, n) 
-//              * YLM(n, m, theta, phi) << "\n";
-            pot +=  this->coefficients[coeff_index++] * pow(r, n) 
-                * YLM(n, m, theta, phi); 
+            pot += self(n,m) * r_pow * sphericalHarmonicY(n, m); 
         }
+        r_pow *= r; 
     }
 
     return pot.real(); 

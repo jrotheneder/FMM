@@ -3,7 +3,7 @@ EXT = cpp
 
 DEBUGFLAGS = -g -ggdb -O3 #-fno-inline
 OFLAGS = -O3 #-fopenmp
-#OFLAGS = -O3 #-ffast-math #-fopenmp
+#OFLAGS = -O3 -ffast-math #-fopenmp
 LIBS = -lgsl -lcblas
 CXXFLAGS = -Wall  -std=c++17 -pedantic  
 

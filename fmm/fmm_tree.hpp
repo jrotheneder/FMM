@@ -326,7 +326,6 @@ Vector BalancedFmmTree<Vector, Source, d>::
             force_vec += evalVectorInteraction(*containing_leaf.sources, 
                     eval_point, safeForceFunction);
         }
-
     }
 
     return force_vec;
