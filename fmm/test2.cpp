@@ -21,7 +21,7 @@ int main(int argc, char *argv[]) {
     
 
     const size_t N = 10000;
-    const size_t items_per_leaf = 10; 
+    const size_t items_per_leaf = 500; 
     const size_t d = 2;
     const double eps = 1E-3; 
     const size_t order = ceil(log(1/eps) / log(2)); 

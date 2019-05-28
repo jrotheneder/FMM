@@ -180,14 +180,38 @@ BalancedFmmTree<Vector, Source, d>::BalancedFmmTree(std::vector<Source>& sources
 
     // Upward pass: Form expansions at leaves and shift to parents
 
-    for(std::size_t i = 0; i < n_leaves; ++i) { //TODO: parallelizable!
+    #pragma omp parallel for
+    for(std::size_t i = 0; i < n_leaves; ++i) { 
 
         FmmLeaf& leaf = this->leaves[i];
         leaf.multipole_expansion = ME(leaf.center, order, *leaf.sources);
 
     }
 
+    for(int64_t depth = this->height-1; depth >= 0; --depth) {
 
+        std::size_t n_nodes_at_depth = std::pow(AOT::n_children, depth); 
+        std::size_t offset = (std::pow(AOT::n_children, depth) - 1) 
+            / (AOT::n_children - 1);
+         
+        // TODO possible if clause to parallelize only if enough grain available
+        #pragma omp parallel for 
+        for(std::size_t i = 0; i < n_nodes_at_depth; i++) {
+
+            FmmNode& node = nodes[offset + i]; 
+            std::vector<const ME*> children_expansions;
+
+            for(BaseNode* child : node.children) {
+                children_expansions.push_back(
+                        &(static_cast<FmmNode*>(child)->multipole_expansion)
+                ); 
+            }
+
+            node.multipole_expansion = ME(node.center, children_expansions); 
+        }
+    }
+    
+    /*
     for(int64_t i = n_nodes - 1; i >= 0; --i) { // TODO: parallelizable within levels
 
         FmmNode& node = this->nodes[i]; 
@@ -202,6 +226,7 @@ BalancedFmmTree<Vector, Source, d>::BalancedFmmTree(std::vector<Source>& sources
         node.multipole_expansion = ME(node.center, children_expansions); 
 
     }
+    */
     
     // Downward pass: Convert multipole expansions to local expansions
 
@@ -233,7 +258,6 @@ BalancedFmmTree<Vector, Source, d>::BalancedFmmTree(std::vector<Source>& sources
 
     #pragma omp parallel for 
     for(std::size_t leaf_index = 0; leaf_index < n_leaves; ++leaf_index) {
-
 
         FmmNode& current_node = leaves[leaf_index]; 
 

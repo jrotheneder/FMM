@@ -8,7 +8,6 @@ namespace fmm {
 
 typedef std::complex<double> Complex; 
 
-
 template<typename Vector, typename Source, std::size_t d>
 struct LocalExpansion: SeriesExpansion<Vector, Source, d> {
     static_assert(d==2 || d==3, 
