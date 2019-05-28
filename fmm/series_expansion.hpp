@@ -10,6 +10,7 @@
 
 namespace fmm {
 
+// TODO put these into a different header
 typedef std::complex<double> Complex; 
 static const double PI = boost::math::constants::pi<double>();
 constexpr auto sphericalHarmonicY = boost::math::spherical_harmonic<double, double>;
@@ -63,14 +64,86 @@ double binomial(std::size_t n, std::size_t k) { // TODO consider a lookup table 
 template<typename Vector, typename Source, std::size_t d>
 struct SeriesExpansion {};
 
-// TODO: unify 2d expansion interface
+
+/******************************************************************************/
+/*                      2D Series Expansion Implementation                    */
+/******************************************************************************/
 template<typename Vector, typename Source>
 struct SeriesExpansion<Vector, Source, 2> {
+
+    int order; 
+    Complex center; // Center of the expansion
+    std::vector<Complex> coefficients; // ME coefficients
+
+    SeriesExpansion(): order(), center(), coefficients() {}
+    SeriesExpansion(const Vector& center, int order);
+
+    SeriesExpansion& operator+=(const SeriesExpansion& rhs);
+    Complex& operator()(unsigned n); // Access coefficients M_n^m
+    const Complex& operator()(unsigned n) const;
+
+    virtual double evaluatePotential(const Vector& eval_point) const = 0;
+    virtual Vector evaluateForcefield(const Vector& eval_point) const = 0;
+
+    template<typename V, typename S>
+    friend std::ostream& operator<<(std::ostream& o, const SeriesExpansion& me);
+
+    virtual ~SeriesExpansion() {}
 };
 
+
+template<typename Vector, typename Source>
+SeriesExpansion<Vector, Source, 2>::SeriesExpansion(const Vector& center, 
+        int order): order(order), center({center[0], center[1]}), coefficients(order + 1) {}
+
+template<typename Vector, typename Source>
+SeriesExpansion<Vector, Source, 2>& SeriesExpansion<Vector, Source, 2>::
+        operator+=(const SeriesExpansion& rhs) {
+
+    assert(coefficients.size() == rhs.coefficients.size());
+    assert(this->center == rhs.center);
+
+    std::transform (
+        coefficients.begin(), coefficients.end(), rhs.coefficients.begin(), 
+        coefficients.begin(), std::plus<Complex>()
+    );
+
+    return *this;
+}
+
+template<typename Vector, typename Source> 
+Complex& SeriesExpansion<Vector, Source, 2>::operator()(unsigned n) {
+
+    //return coefficients.at(n*(n+1) + m); 
+    return coefficients[n]; 
+}
+
+template<typename Vector, typename Source> 
+const Complex& SeriesExpansion<Vector, Source, 2>::operator()(unsigned n) 
+        const {
+
+    //return coefficients.at(n*(n+1) + m); 
+    return coefficients[n]; 
+}
+
+template<typename Vector, typename Source> 
+std::ostream& operator<<(std::ostream& o, SeriesExpansion<Vector, Source, 2>& se) {
+
+    o << "n\tRe a_n\tIm a_n\n";
+    for(int n = 0; n <= se.order; ++n) { 
+        o << n << "\t" << se.coefficients[n].real() << "\t"
+            << se.coefficients[n].imag() << "\n";
+    }
+    o << "\n";
+
+   return o; 
+}
+
+/******************************************************************************/
+/*                      3D Series Expansion Implementation                    */
+/******************************************************************************/
 template<typename Vector, typename Source>
 struct SeriesExpansion<Vector, Source, 3> {
-
 
     // Lookup tables for frequently needed values
     struct YlmTable;  // spherical harmonics
@@ -146,23 +219,6 @@ struct SeriesExpansion<Vector, Source, 3>::YlmTable {
         gsl_sf_legendre_array_e(GSL_SF_LEGENDRE_SCHMIDT, lmax, 
             std::cos(theta), -1, result); 
 
-        /*
-        unsigned coeff_index = 0; // index of next coefficient to be computed
-        for(std::size_t l = 0; l <= lmax; ++l) {
-
-            //Handle m = 0 differently due to the Schmidt semi-normalization
-            //convention used with gsl (comes the closest to what we want)
-            table[coeff_index++] = result[gsl_sf_legendre_array_index(l, 0)];
-
-            Complex exp_phi = std::exp(1i * phi); 
-            Complex exp_m_phi = 1; 
-
-            for(std::size_t m = 1; m <= l; ++m) {
-                 table[coeff_index++] = result[gsl_sf_legendre_array_index(l, m)]
-                     * (exp_m_phi *= exp_phi) / std::sqrt(2);
-            }
-        }
-        */
         for(std::size_t l = 0; l <= lmax; ++l) {
 
             //Handle m = 0 differently due to the Schmidt semi-normalization
@@ -315,17 +371,17 @@ const Complex& SeriesExpansion<Vector, Source, 3>::operator()(unsigned n, int m)
 }
 
 template<typename Vector, typename Source> 
-std::ostream& operator<<(std::ostream& o, SeriesExpansion<Vector, Source, 3>& me) {
+std::ostream& operator<<(std::ostream& o, SeriesExpansion<Vector, Source, 3>& se) {
 
-    unsigned coeff_index = 0; // index of next coefficient to be computed
+    unsigned coeff_index = 0; 
 
     o << "n\tm\tRe M_l^m\tIm M_l^m\n";
 
-    for(int n = 0; n <= me.order; ++n) { 
+    for(int n = 0; n <= se.order; ++n) { 
         for(int m = -n; m <= n; ++m) {
             o << n << "\t" << m << "\t" 
-                << me.coefficients[coeff_index].real() << "\t\t"
-                << me.coefficients[coeff_index].imag() << "\n";
+                << se.coefficients[coeff_index].real() << "\t\t"
+                << se.coefficients[coeff_index].imag() << "\n";
             ++coeff_index;
         }
     }
