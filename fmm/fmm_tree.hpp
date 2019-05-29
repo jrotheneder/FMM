@@ -229,7 +229,6 @@ BalancedFmmTree<Vector, Source, d>::BalancedFmmTree(std::vector<Source>& sources
     */
     
     // Downward pass: Convert multipole expansions to local expansions
-
     for(std::size_t depth = 2; depth < this->height; ++depth) {
 
         std::size_t n_nodes_at_depth = std::pow(AOT::n_children, depth); 
