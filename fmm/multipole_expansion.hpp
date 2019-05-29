@@ -259,7 +259,7 @@ std::vector<Complex> MultipoleExpansion<Vector, Source, 3>::shift(
                 Complex accumulant = 0; 
 
                 for(int m = std::max(-n, n+k-j); m <= std::min(n, j+k-n); ++m) {
-                    M_jk += sign1(k, m) * A(n, m) * A(j-n, k-m)     
+                    accumulant += sign1(k, m) * A(n, m) * A(j-n, k-m)     
                         * (outgoing(j-n, k-m) * sphericalHarmonicY(n, -m));
                 }
 

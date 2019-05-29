@@ -218,11 +218,11 @@ LocalExpansion<Vector, Source, 3>::LocalExpansion(const Vector& center,
     const auto [r, theta, phi]  
         = (incoming.center - this->center).toSpherical().data(); 
 
-    // Precompute powers of r:
+    // Precompute inverse powers of r:
     double* r_pow_table = new double[2 * this->order + 1];  
-    r_pow_table[0] = r; 
+    r_pow_table[0] = 1/r; 
     for(int i = 1; i <= 2 * this->order; ++i) { 
-        r_pow_table[i] = r_pow_table[i-1] * r; 
+        r_pow_table[i] = r_pow_table[i-1] / r; 
     }
 
     // Precomputed values of Y_l^m(theta, phi) & A_l^m 
@@ -234,23 +234,20 @@ LocalExpansion<Vector, Source, 3>::LocalExpansion(const Vector& center,
         for(int k = -j; k <= j; ++k) {
 
             Complex L_jk = 0; // Coeff. L_j^k of the created local expansion 
-            double A_jk = A(j,k) ; // A_j^k
 
             for(int n = 0; n <= this->order; ++n) {
-
-                double sign = n % 2 ? -1 : 1; 
                 Complex accumulant = 0; 
-
                 for(int m = -n; m <= n; ++m) {
-                    accumulant += sign2(k, m) * A(n,m) 
-                        / (A(j+n, m-k) * r_pow_table[j+n])
+                    const double A_coeff = sign2(k, m) * A(n,m) / A(j+n, m-k);
+                    accumulant += A_coeff
                         * (incoming(n, m) * sphericalHarmonicY(j+n, m-k)); 
                 }
 
-                L_jk += sign * accumulant;
+                double sign = n % 2 ? -1 : 1; 
+                L_jk += sign * r_pow_table[j+n] * accumulant ;
             }
 
-            L_jk *= A_jk;
+            L_jk *= A(j,k);
             self(j,k) = L_jk;
         }
     }
