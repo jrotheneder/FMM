@@ -1,10 +1,10 @@
-#ifndef POINT_ORTHTREE_H
-#define POINT_ORTHTREE_H
+#ifndef BALANCED_POINT_ORTHTREE_H
+#define BALANCED_POINT_ORTHTREE_H
 
 #include "balanced_orthtree.hpp"
 
 template<typename Vector, std::size_t d>
-class PointOrthtree: public BalancedOrthtree<Vector, d> {
+class BalancedPointOrthtree: public BalancedOrthtree<Vector, d> {
 
     using AOT = AbstractOrthtree<Vector, d>;
     using Super = BalancedOrthtree<Vector, d>;
@@ -15,16 +15,16 @@ public:
     struct Node; 
     struct Leaf; 
 
-    PointOrthtree(std::vector<Vector> points, std::size_t s);
+    BalancedPointOrthtree(std::vector<Vector> points, std::size_t s);
 
     void toFile() override; 
 
-    ~PointOrthtree() { delete this->root; }
+    ~BalancedPointOrthtree() { delete this->root; }
 
 };
 
 template<typename Vector, std::size_t d>
-struct PointOrthtree<Vector, d>::Node: BaseNode {
+struct BalancedPointOrthtree<Vector, d>::Node: BaseNode {
 
     Node(Vector center, double box_length, std::size_t depth, 
         Node * parent): BaseNode(center, box_length, depth, parent) {}
@@ -33,7 +33,7 @@ struct PointOrthtree<Vector, d>::Node: BaseNode {
 };
 
 template<typename Vector, std::size_t d>
-struct PointOrthtree<Vector, d>::Leaf: Node {
+struct BalancedPointOrthtree<Vector, d>::Leaf: Node {
 
     std::vector<Vector> * points;
 
@@ -43,25 +43,18 @@ struct PointOrthtree<Vector, d>::Leaf: Node {
 };
 
 template<typename Vector, std::size_t d>
-PointOrthtree<Vector, d>::PointOrthtree(std::vector<Vector> points, 
+BalancedPointOrthtree<Vector, d>::BalancedPointOrthtree(std::vector<Vector> points, 
         std::size_t items_per_leaf): BalancedOrthtree<Vector, d>() {
 
-    // Determine tree height, bounding box lenghts and center as well as
-    // the directions in which the child centers lie relative to the center
-    // of a box
+    // Determine tree height, bounding box lenghts and center    
     this->height = ceil(log((double)points.size()/items_per_leaf) / 
             log(AOT::n_children));
 
-    Vector lower_bounds, upper_bounds;  
-    std::tie(lower_bounds, upper_bounds) = AOT::getDataRange(points);
+    auto [lower_bounds, upper_bounds] = AOT::getDataRange(points);
     auto extents = Vector{upper_bounds - lower_bounds}.data(); 
     double box_length = *std::max_element(extents.begin(), extents.end());
 
     Vector center = 0.5 * (lower_bounds + upper_bounds); 
-
-//  std::cout << "Orthtree height is " << height << endl;
-//  std::cout << "Orthtree extents are " << lower_bounds << std::endl << 
-//      upper_bounds << std::endl;
 
     // Build tree: 
     std::size_t child_depth = 0; 
@@ -133,12 +126,12 @@ PointOrthtree<Vector, d>::PointOrthtree(std::vector<Vector> points,
 }
 
 template<typename Vector, std::size_t d>
-void PointOrthtree<Vector, d>::toFile() {
+void BalancedPointOrthtree<Vector, d>::toFile() {
 
     std::string geometry_filename = "geometry.dat";
     std::string data_filename =  "points.dat";
 
-    ofstream geometry_file, data_file; 
+    std::ofstream geometry_file, data_file; 
     geometry_file.open(geometry_filename);
     data_file.open(data_filename);
 

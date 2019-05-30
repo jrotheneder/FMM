@@ -9,37 +9,48 @@
 #include "debugging.hpp" 
 #include "vector.hpp" 
 
-#include "point_orthtree.hpp" 
+#include "balanced_point_orthtree.hpp" 
+#include "adaptive_point_orthtree.hpp" 
 
 //using namespace std;
 
 int main(int argc, char *argv[]) {
      
-    size_t N = 5000;
-    const size_t d = 3;
+    size_t N = 2000;
+    const int s = 20;
+    const size_t d = 2;
     const size_t seed = 42; // Reference data is hardcoded and requires this seed
     srand(seed); 
 
-    vector<Vector<d>> sources;
-    Vector<d> center{}; // Origin 
-    Vector<d> ones; ones.fill(1);
-    double extent = 32;
+    using Vec = Vector<d>;
 
+    double extent = 32;
+    auto centers = AbstractOrthtree<Vec, d>::getChildCenterDirections(); 
+    for(std::size_t i = 0; i < (1 << d) ; ++i) {
+        centers[i] = centers[i] * (2 * extent); 
+    }
+     
+    Vec ones; ones.fill(1);
+
+    std::vector<Vec> sources;
     for(size_t i = 0; i < N; i++) {
-        Vector<d> v;      
+        Vec v;      
         for(size_t j = 0; j < d; ++j) {
             v[j] =  extent * ((double) rand() / (RAND_MAX)) - extent/2;
         }
+        v += centers[rand() % AbstractOrthtree<Vec, d>::n_children];
 
         sources.push_back(v); 
     }
 
-    PointOrthtree<Vector<d>, d>q(sources, 100);
-    std::cout << "Orthtree height is " << q.getHeight() << ", centered at " <<
-        q.getCenter() << std::endl;
-    q.toFile();
+    //BalancedPointOrthtree<Vec, d>q(sources, s);
+    AdaptivePointOrthtree<Vec, d>aq(sources, s);
 
-//  q.traverseBFSCore([&q](const AbstractOrthtree<Vector<d>, d>::Node * node) {
+    std::cout << "Orthtree height is " << aq.getHeight() << ", centered at " <<
+        aq.getCenter() << std::endl;
+    aq.toFile();
+
+//  q.traverseBFSCore([&q](const AbstractOrthtree<Vec, d>::Node * node) {
 //          std::cout << q.getHeight() - node->height << ", " 
 //          << node->center << std::endl; }); 
 

@@ -227,8 +227,8 @@ LocalExpansion<Vector, Source, 3>::LocalExpansion(const Vector& center,
 
     // Precomputed values of Y_l^m(theta, phi) & A_l^m 
     const typename Super::YlmTable sphericalHarmonicY(2*this->order, theta, phi); 
-    typename Super::template AlmTable& A = Super::alm_table;
-    typename Super::template SignTable& sign2 = Super::sign_fun2_table;
+    typename Super::AlmTable& A = Super::alm_table;
+    typename Super::SignTable& sign2 = Super::sign_fun2_table;
 
     for(int j = 0; j <= this->order; ++j) {
         for(int k = -j; k <= j; ++k) {
@@ -291,8 +291,8 @@ std::vector<Complex> LocalExpansion<Vector, Source, 3>::shift(
       
     // Precomputed values of Y_l^m(theta, phi) & A_l^m 
     const typename Super::YlmTable sphericalHarmonicY(2 * this->order, theta, phi); 
-    typename Super::template AlmTable& A = Super::alm_table;
-    typename Super::template SignTable& sign3 = Super::sign_fun3_table;
+    typename Super::AlmTable& A = Super::alm_table;
+    typename Super::SignTable& sign3 = Super::sign_fun3_table;
 
     unsigned coeff_index = 0; // index of next coefficient to be computed
     for(int j = 0; j <= this->order; ++j) {  

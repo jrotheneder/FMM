@@ -19,8 +19,8 @@ using namespace fmm;
 int main(int argc, char *argv[]) {
     
 
-    const size_t N = 10000;
-    const size_t items_per_leaf = 100; 
+    const size_t N = 30000;
+    const size_t items_per_leaf = 200; 
     const size_t d = 3;
     const double eps = 1E-3; 
     const size_t order = ceil(log(1/eps) / log(2)); 
@@ -88,15 +88,15 @@ int main(int argc, char *argv[]) {
     }
     t2 = std::chrono::high_resolution_clock::now();
 
-//  std::vector<double> diffs(potentials.size()); 
-//  std::transform (
-//      potentials.begin(), potentials.end(), ref_potentials.begin(), 
-//      diffs.begin(), [](double a, double b) -> double { return std::abs(a-b); } 
-//  );
-//  std::cout << "direct took " << chrono_duration(t2-t1) << std::endl; 
+    std::vector<double> diffs(potentials.size()); 
+    std::transform (
+        potentials.begin(), potentials.end(), ref_potentials.begin(), 
+        diffs.begin(), [](double a, double b) -> double { return std::abs(a-b); } 
+    );
+    std::cout << "direct took " << chrono_duration(t2-t1) << std::endl; 
 
-//  std::cout << "Mean abs potential deviation: " << 
-//      std::accumulate(diffs.begin(), diffs.end(), 0.0)/diffs.size() << std::endl;
+    std::cout << "Mean abs potential deviation: " << 
+        std::accumulate(diffs.begin(), diffs.end(), 0.0)/diffs.size() << std::endl;
 
 //  auto forces = q.evaluateParticleForcefields(); 
 //  std::vector<Vec> ref_forces(sources.size()); 

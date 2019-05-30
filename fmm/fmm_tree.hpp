@@ -143,7 +143,7 @@ BalancedFmmTree<Vector, Source, d>::BalancedFmmTree(std::vector<Source>& sources
     std::cout << "Tree has height " << this->height << ", " << n_nodes << 
         " nodes, " << n_leaves << " leaves, order is p = " << order << "\n";
 
-    if(this->height == 0) { // Degenerate tree: short circuit construction
+    if(this->height == 0) { // Short circuit construction
 
         this->nodes = nullptr; 
         this->leaves = new FmmLeaf[n_leaves /* == 1 */];   

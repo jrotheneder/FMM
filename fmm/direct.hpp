@@ -69,7 +69,7 @@ Vector electrostaticForce_s(const Source& src, const Vector& evaluation_point) {
     }
     
     if constexpr(d == 2) { return src.q / (r*r) * diff; }
-    else { return src.q / (r*r*r) * diff; }
+    { return src.q / (r*r*r) * diff; }
 }
 
 template<typename Vector, typename Source, std::size_t d>

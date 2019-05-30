@@ -55,7 +55,7 @@ struct Vector {
         return std::inner_product(coords.begin(), coords.end(), rhs.data().begin(), 0.); 
     }
 
-    NumType norm() const { //TODO take care with extended precision...
+    NumType norm() const { 
         if constexpr(d == 1) {
             return std::abs(coords[0]); 
         }
@@ -65,9 +65,8 @@ struct Vector {
         else if(d == 3)  {
             return std::hypot(coords[0], coords[1], coords[2]);
         }
-        else {
-            return sqrt(this->dot(*this)); 
-        }
+
+        return sqrt(this->dot(*this)); 
     } 
 
     // Returns vector of  (r, φ) of polar coordinates from vector (x, y) of

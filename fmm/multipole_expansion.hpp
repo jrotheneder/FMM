@@ -245,8 +245,8 @@ std::vector<Complex> MultipoleExpansion<Vector, Source, 3>::shift(
 
     // Precomputed values of Y_l^m(theta, phi) & A_l^m 
     const typename Super::YlmTable sphericalHarmonicY(this->order, theta, phi); 
-    typename Super::template AlmTable& A = Super::alm_table;
-    typename Super::template SignTable& sign1 = Super::sign_fun1_table;
+    typename Super::AlmTable& A = Super::alm_table;
+    typename Super::SignTable& sign1 = Super::sign_fun1_table;
       
     unsigned coeff_index = 0; // index of next coefficient to be computed
     for(int j = 0; j <= this->order; ++j) {  

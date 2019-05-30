@@ -27,7 +27,7 @@ public:
     BaseNode * root; 
 
     std::size_t height;
-    static const int n_children = pow(2,d); 
+    static const int n_children = 1 << d; 
     const std::array<Vector, n_children> child_center_directions; 
 
     AbstractOrthtree(): child_center_directions(getChildCenterDirections()) {};
@@ -98,7 +98,8 @@ std::array<Vector, AbstractOrthtree<Vector, d>::n_children>
     //possible directions in which the centers of a given node's children 
     //may lie. A 0 in the d-j-1-st position of the bit vector corresponds to 
     //a direction vector whose j-th component is -1; a 1 in the same position 
-    //to a direction vector whose j-th component is +1.
+    //to a direction vector whose j-th component is +1. 
+    //E.g. bitset 01 goes to {-1,1}. 
 
     for(std::size_t i = 0; i < AbstractOrthtree<Vector, d>::n_children; ++i) {
 
@@ -117,7 +118,6 @@ std::array<Vector, AbstractOrthtree<Vector, d>::n_children>
     // 3D: {-1, -1, -1}, {-1, -1, 1 }, {-1, 1, -1}, {-1, 1, 1}, 
     //     {1, -1, -1}, {1, -1, 1 }, {1, 1, -1}, {1, 1, 1}
 
-    vecToFile(child_center_directions, child_center_directions.size(), "test.dat"); 
     return child_center_directions; 
 }
 
@@ -146,7 +146,7 @@ std::tuple<Vector, Vector> AbstractOrthtree<Vector, d>::getDataRange(
     upper_bounds = upper_bounds + paddingFactor * upper_bounds;
 
 
-    return make_tuple(lower_bounds, upper_bounds);
+    return std::make_tuple(lower_bounds, upper_bounds);
 }
 
 template<typename Vector, std::size_t d>
