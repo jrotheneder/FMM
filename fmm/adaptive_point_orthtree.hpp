@@ -132,8 +132,10 @@ void AdaptivePointOrthtree<Vector, d>::toFile() {
 
         Vector center = current->center;
         double box_length = current->box_length;
+        bool is_leaf = current->children[0] == nullptr;
 
-        geometry_file << n_node << ", " << current->depth << ", " << box_length;
+        geometry_file << n_node << ", " << is_leaf << "," << current->depth 
+            << ", " << box_length;
         for(auto coord : center.data()) { geometry_file << ", " << coord; }
         geometry_file << std::endl;
 
@@ -151,7 +153,7 @@ void AdaptivePointOrthtree<Vector, d>::toFile() {
             }
             data_file << "\n";
         }
-        ++n_node;
+        ++n_node; 
     });
     
     geometry_file.close();

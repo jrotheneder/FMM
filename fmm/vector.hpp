@@ -6,6 +6,8 @@
 #include <numeric> 
 #include <cassert> 
 
+namespace fmm {
+
 template<std::size_t d>
 struct Vector {
     
@@ -159,26 +161,28 @@ struct Vector {
 };
 
 template<std::size_t d>
-struct PointCharge {
+struct PointSource {
 
     using NumType = double; 
 
     Vector<d> position; 
     NumType q; 
 
-    PointCharge(Vector<d> position = {}, NumType q = 0): position(position), q(q) {}
-    PointCharge(std::array<NumType, d> position, NumType q): position(position), q(q) {}
+    PointSource(Vector<d> position = {}, NumType q = 0): position(position), q(q) {}
+    PointSource(std::array<NumType, d> position, NumType q): position(position), q(q) {}
 
-    bool operator==(const PointCharge& rhs) const { 
+    bool operator==(const PointSource& rhs) const { 
         return this->q == rhs.q && this->position == rhs.position;
     }
 
     NumType sourceStrength() const { return q; }
 
-    friend std::ostream& operator<<(std::ostream& o, const PointCharge& p) {
+    friend std::ostream& operator<<(std::ostream& o, const PointSource& p) {
         o << p.position << ", q = " << p.q; 
         return o; 
     }
 };
+
+} //namespace fmm
 
 #endif

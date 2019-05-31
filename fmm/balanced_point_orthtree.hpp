@@ -50,7 +50,7 @@ BalancedPointOrthtree<Vector, d>::BalancedPointOrthtree(std::vector<Vector> poin
     this->height = ceil(log((double)points.size()/items_per_leaf) / 
             log(AOT::n_children));
 
-    auto [lower_bounds, upper_bounds] = AOT::getDataRange(points);
+    auto [lower_bounds, upper_bounds] = this->getDataRange(points);
     auto extents = Vector{upper_bounds - lower_bounds}.data(); 
     double box_length = *std::max_element(extents.begin(), extents.end());
 
@@ -166,5 +166,7 @@ void BalancedPointOrthtree<Vector, d>::toFile() {
     geometry_file.close();
     data_file.close();
 }
+
+
 
 #endif

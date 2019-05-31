@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
     double extent = 32;
     auto centers = AbstractOrthtree<Vec, d>::getChildCenterDirections(); 
     for(std::size_t i = 0; i < (1 << d) ; ++i) {
-        centers[i] = centers[i] * (2 * extent); 
+        centers[i] = centers[i] * (((rand() % 2) ? 1 : 1.5) * extent); 
     }
      
     Vec ones; ones.fill(1);

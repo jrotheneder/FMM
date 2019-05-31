@@ -15,13 +15,12 @@ public:
     
     static unsigned getOrthant(const Vector& center, const Vector& point); 
 
-
     virtual ~AdaptiveOrthtree() = 0; 
 };
 
 // Computes index of orthant that a point falls into w.r.t. a given center. 
 // This method assumes a specific ordering of the orthants, i.e. it will break
-// if AbstractOrthtreek::getChildCenterDirections() is modified. 
+// if AbstractOrthtree::getChildCenterDirections() is modified. 
 template<typename Vector, std::size_t d>
 unsigned AdaptiveOrthtree<Vector, d>::getOrthant(const Vector& center, 
         const Vector& point) {

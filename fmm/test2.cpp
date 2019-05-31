@@ -12,7 +12,7 @@
 #include "debugging.hpp" 
 #include "vector.hpp" 
 
-#include "fmm_tree.hpp" 
+#include "balanced_fmm_tree.hpp" 
 
 using namespace fmm; 
 
@@ -28,7 +28,7 @@ int main(int argc, char *argv[]) {
     srand(seed); 
 
     using Vec = Vector<d>;
-    using Src = PointCharge<d>;
+    using Src = PointSource<d>;
 
     constexpr auto EPot = fields::electrostaticPotential_s<Vec, Src, d>;
     constexpr auto EFrc = fields::electrostaticForce_s<Vec, Src, d>;
@@ -55,7 +55,7 @@ int main(int argc, char *argv[]) {
     auto t1 = std::chrono::high_resolution_clock::now();
 
 //  CALLGRIND_TOGGLE_COLLECT;
-    BalancedFmmTree<Vec, Src, d>q(sources, items_per_leaf, eps);
+    BalancedFmmTree<d>q(sources, items_per_leaf, eps);
 //  CALLGRIND_TOGGLE_COLLECT;
 
     auto t2 = std::chrono::high_resolution_clock::now();
