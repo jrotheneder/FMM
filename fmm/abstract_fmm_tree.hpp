@@ -12,48 +12,48 @@ class AbstractFmmTree {
 
 protected:
 
-    using Vec = Vector<d>; 
-    using Source = PointSource<d>;
+    using Vector = Vector_<d>; 
+    using PointSource = PointSource_<d>;
 
-    using AOT = AbstractOrthtree<Vec, d>;
-    using Super = BalancedOrthtree<Vec, d>;
+    using AOT = AbstractOrthtree<Vector, d>;
+    using Super = BalancedOrthtree<Vector, d>;
     using BaseNode = typename AOT::BaseNode; 
-    using ME = MultipoleExpansion<Vec, Source, d>;
-    using LE = LocalExpansion<Vec, Source, d>;
+    using ME = MultipoleExpansion<Vector, PointSource, d>;
+    using LE = LocalExpansion<Vector, PointSource, d>;
 
 
     static constexpr auto evalScalarInteraction 
-        = evaluateInteraction<Vec, Source, double>;
-    static constexpr auto evalVecInteraction 
-        = evaluateInteraction<Vec, Source, Vec>;
+        = evaluateInteraction<Vector, PointSource, double>;
+    static constexpr auto evalVectorInteraction 
+        = evaluateInteraction<Vector, PointSource, Vector>;
 
     static constexpr auto potentialFunction
-        = fields::electrostaticPotential<Vec, Source, d>;
+        = fields::electrostaticPotential<Vector, PointSource, d>;
     static constexpr auto safePotentialFunction
-        = fields::electrostaticPotential_s<Vec, Source, d>;
+        = fields::electrostaticPotential_s<Vector, PointSource, d>;
     static constexpr auto forceFunction
-        = fields::electrostaticForce<Vec, Source, d>;
+        = fields::electrostaticForce<Vector, PointSource, d>;
     static constexpr auto safeForceFunction
-        = fields::electrostaticForce_s<Vec, Source, d>;
+        = fields::electrostaticForce_s<Vector, PointSource, d>;
 
     const double max_neighbour_distance = 1.1 * sqrt(d); 
     //in units of box_length + padding to avoid numerical issues
 
-    std::vector<Source>& sources;
+    std::vector<PointSource>& sources;
     std::size_t order;
 
 public: 
-    AbstractFmmTree(std::vector<Source>& sources): sources(sources) {};
+    AbstractFmmTree(std::vector<PointSource>& sources): sources(sources) {};
 
-    virtual double evaluatePotential(const Vec& eval_point) const = 0; 
-    virtual Vec evaluateForcefield(const Vec& eval_point) const = 0; 
+    virtual double evaluatePotential(const Vector& eval_point) const = 0; 
+    virtual Vector evaluateForcefield(const Vector& eval_point) const = 0; 
     std::vector<double> evaluateParticlePotentials() const; 
-    std::vector<Vec> evaluateParticleForcefields() const; 
+    std::vector<Vector> evaluateParticleForcefields() const; 
 
     virtual ~AbstractFmmTree() {}
 
 protected:
-    static std::tuple<Vec, Vec> getDataRange(const std::vector<Source>& sources);
+    static std::tuple<Vector, Vector> getDataRange(const std::vector<PointSource>& sources);
 
     template<typename FmmNode>
     void localToLocal(FmmNode& node);
@@ -73,10 +73,9 @@ std::vector<double> AbstractFmmTree<d>::evaluateParticlePotentials() const {
 }
 
 template<std::size_t d>
-std::vector<Vector<d>> AbstractFmmTree<d>::
-        evaluateParticleForcefields() const {
+std::vector<Vector_<d>> AbstractFmmTree<d>::evaluateParticleForcefields() const {
 
-    std::vector<Vec> forces(sources.size()); 
+    std::vector<Vector> forces(sources.size()); 
     for(std::size_t i = 0; i < sources.size(); ++i) {
         forces[i] = evaluateForcefield(sources[i].position);
     }
@@ -85,15 +84,15 @@ std::vector<Vector<d>> AbstractFmmTree<d>::
 }
 
 template<std::size_t d>
-std::tuple<Vector<d>, Vector<d>> AbstractFmmTree<d>::getDataRange(
-        const std::vector<Source> & sources) {
+std::tuple<Vector_<d>, Vector_<d>> AbstractFmmTree<d>::getDataRange(
+        const std::vector<PointSource> & sources) {
 
-    Vec lower_bounds, upper_bounds; 
+    Vector lower_bounds, upper_bounds; 
     lower_bounds.fill(HUGE_VAL);
     upper_bounds.fill(-HUGE_VAL);
 
-    std::for_each(sources.begin(), sources.end(), [&](Source p) { 
-        Vec & pos = p.position; 
+    std::for_each(sources.begin(), sources.end(), [&](PointSource p) { 
+        Vector& pos = p.position; 
         for(std::size_t i = 0; i < d; i++) {
             lower_bounds[i] = pos[i] < lower_bounds[i] ? pos[i] : lower_bounds[i];
             upper_bounds[i] = pos[i] > upper_bounds[i] ? pos[i] : upper_bounds[i];  

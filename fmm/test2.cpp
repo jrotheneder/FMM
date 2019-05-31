@@ -19,7 +19,7 @@ using namespace fmm;
 int main(int argc, char *argv[]) {
     
 
-    const size_t N = 30000;
+    const size_t N = 10000;
     const size_t items_per_leaf = 200; 
     const size_t d = 3;
     const double eps = 1E-3; 
@@ -27,8 +27,8 @@ int main(int argc, char *argv[]) {
     const size_t seed = 42; 
     srand(seed); 
 
-    using Vec = Vector<d>;
-    using Src = PointSource<d>;
+    using Vec = Vector_<d>;
+    using Src = PointSource_<d>;
 
     constexpr auto EPot = fields::electrostaticPotential_s<Vec, Src, d>;
     constexpr auto EFrc = fields::electrostaticForce_s<Vec, Src, d>;

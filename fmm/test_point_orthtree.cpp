@@ -22,7 +22,7 @@ int main(int argc, char *argv[]) {
     const size_t seed = 42; // Reference data is hardcoded and requires this seed
     srand(seed); 
 
-    using Vec = Vector<d>;
+    using Vec = fmm::Vector_<d>;
 
     double extent = 32;
     auto centers = AbstractOrthtree<Vec, d>::getChildCenterDirections(); 

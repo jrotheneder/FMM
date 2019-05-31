@@ -7,7 +7,7 @@ OFLAGS = -O3 #-fopenmp
 LIBS = -lgsl -lcblas
 CXXFLAGS = -Wall -fno-builtin -std=c++17 -pedantic  
 
-TARGET = test2
+TARGET = test_point_orthtree
 DEPENDS = makefile $(TARGET).$(EXT) abstract_orthtree.hpp balanced_orthtree.hpp \
 		  balanced_point_orthtree.hpp adaptive_point_orthtree.hpp vector.hpp \
 		  abstract_fmm_tree.hpp balanced_fmm_tree.hpp series_expansion.hpp \
