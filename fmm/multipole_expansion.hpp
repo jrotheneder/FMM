@@ -45,7 +45,7 @@ template<typename Vector, typename Source>
 MultipoleExpansion<Vector, Source, 2>::MultipoleExpansion(const Vector& center, 
         std::size_t order, std::vector<Source>& sources): Super(center, order) {
     
-    // Compute series expansion coefficients a_1 through a_order: 
+    // Compute series expansion coefficients a_0 through a_order: 
     for(std::size_t i = 0; i < sources.size(); ++i) {
 
         Source& src = sources[i];
@@ -150,7 +150,7 @@ Vector MultipoleExpansion<Vector, Source, 2>::evaluateForcefield(
 
 
 /******************************************************************************/
-/*                      3D Multipole Expansion Implementation                    */
+/*                      3D Multipole Expansion Implementation                 */
 /******************************************************************************/
 template<typename Vector, typename Source> 
 struct MultipoleExpansion<Vector, Source, 3>: SeriesExpansion<Vector, Source, 3> {
@@ -159,8 +159,7 @@ struct MultipoleExpansion<Vector, Source, 3>: SeriesExpansion<Vector, Source, 3>
     using ME = MultipoleExpansion; 
 
     MultipoleExpansion() {}
-    MultipoleExpansion(const Vector& center, int order, 
-            std::vector<Source>& sources);
+    MultipoleExpansion(const Vector& center, int order, std::vector<Source>& sources);
     MultipoleExpansion(const Vector& center, std::vector<const ME*>& expansions);
 
     MultipoleExpansion& operator+=(const MultipoleExpansion& rhs);

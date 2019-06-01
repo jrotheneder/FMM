@@ -1,6 +1,7 @@
 #ifndef ABSTRACT_FMM_TREE_H
 #define ABSTRACT_FMM_TREE_H
 
+#include "vector.hpp"
 #include "multipole_expansion.hpp"
 #include "local_expansion.hpp"
 #include "direct.hpp"
@@ -15,9 +16,6 @@ protected:
     using Vector = Vector_<d>; 
     using PointSource = PointSource_<d>;
 
-    using AOT = AbstractOrthtree<Vector, d>;
-    using Super = BalancedOrthtree<Vector, d>;
-    using BaseNode = typename AOT::BaseNode; 
     using ME = MultipoleExpansion<Vector, PointSource, d>;
     using LE = LocalExpansion<Vector, PointSource, d>;
 
@@ -43,7 +41,12 @@ protected:
     std::size_t order;
 
 public: 
-    AbstractFmmTree(std::vector<PointSource>& sources): sources(sources) {};
+    AbstractFmmTree(std::vector<PointSource>& sources): sources(sources) {
+        if constexpr(!(d == 2 || d == 3)) {
+            throw std::logic_error("Implementations are only available for "
+                "2 & 3 dimensions."); 
+        } 
+    };
 
     virtual double evaluatePotential(const Vector& eval_point) const = 0; 
     virtual Vector evaluateForcefield(const Vector& eval_point) const = 0; 
@@ -53,7 +56,8 @@ public:
     virtual ~AbstractFmmTree() {}
 
 protected:
-    static std::tuple<Vector, Vector> getDataRange(const std::vector<PointSource>& sources);
+    static std::tuple<Vector, Vector> getDataRange(const 
+        std::vector<PointSource>& sources);
 
     template<typename FmmNode>
     void localToLocal(FmmNode& node);

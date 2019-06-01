@@ -32,7 +32,8 @@ public:
 
     AbstractOrthtree(): child_center_directions(getChildCenterDirections()) {};
 
-    void traverseBFSCore(const std::function <void(BaseNode *)>& processNode);
+    template<typename Node>
+    void traverseBFSCore(const std::function <void(Node *)>& processNode);
 
     std::size_t getHeight() const { return this->height; }
     Vector getCenter() const { return this->root->center; }
@@ -63,25 +64,100 @@ struct AbstractOrthtree<Vector, d>::BaseNode {
         BaseNode * parent = nullptr): center(center), box_length(box_length), 
         depth(depth), parent(parent), children() {}
 
+    bool adjacent(BaseNode* other) const; 
+
     virtual ~BaseNode() {}; // Implement tailored destructor in deriving classes
 }; 
 
+template<typename Vector, std::size_t d>
+bool AbstractOrthtree<Vector, d>::BaseNode::adjacent(BaseNode* other) const {
+
+    // TODO warning if the tree grows so high that this becomes problematic
+    const double rtol = 1E-10; 
+
+    Vector ones(1); 
+    Vector self_lower = this->center - this->box_length/2 * ones; 
+    Vector self_upper = this->center + this->box_length/2 * ones; 
+    Vector other_lower = other->center - other->box_length/2 * ones; 
+    Vector other_upper = other->center + other->box_length/2 * ones; 
+
+    // We check whether the regions owned by two nodes intersect by checking 
+    // overlap in each dimension separately. In 1D, two lines (x1, x2), (y1, y2)
+    // do not intersect if x2 < y1 || x1 > y2 or equiv. if y1-x2 > 0 && x1 - y2
+    // > 0. To allow for some numerical error, we instead check whether 
+    // (y1-x2)/|y1| - rtol > 0 etc.
+
+    Vector diffs1 = other_lower - self_upper; 
+    Vector diffs2 = self_lower - other_upper; 
+
+//  TODO remove
+//  std::cout << "\n\n";
+//  std::cout << "self_lower = " << self_lower << "\n";
+//  std::cout << "self_upper = " << self_upper << "\n";
+//  std::cout << "other_upper = " << other_upper << "\n";
+    for(unsigned i = 0; i < d; ++i) {
+
+        double rel_dev1 = diffs1[i] 
+                / std::max(std::abs(other_lower[i]), std::abs(self_upper[i]));
+        double rel_dev2 = diffs2[i] 
+                / std::max(std::abs(self_lower[i]), std::abs(other_upper[i]));
+
+//      TODO remove
+//      std::cout << "diffs1[" << i << "] = " << diffs1[i] << "\n";
+//      std::cout << "diffs2[" << i << "] = " << diffs2[i] << "\n";
+//      std::cout << "rel_dev1 = " << rel_dev1 << "\n";
+//      std::cout << "rel_dev2 = " << rel_dev2 << "\n";
+
+        if(rel_dev1 - rtol > 0 || rel_dev2 - rtol > 0) { return false; }
+    }
+
+    // TODO remove
+    /*
+    std::cout << "\n\n";
+    for(unsigned i = 0; i < d; ++i) {
+
+        double s_upper = self_upper[i] + rtol * std::abs(self_upper[i]); 
+        double s_lower = self_lower[i] - rtol * std::abs(self_lower[i]);
+        double o_upper = other_upper[i];  
+        double o_lower = other_lower[i];  
+
+
+
+        std::cout
+            << std::setprecision(std::numeric_limits<double>::digits10) 
+            << std::scientific;
+
+        std::cout << "s_lower = " << s_lower << "\n";
+        std::cout << "s_upper = " << s_upper << "\n";
+        std::cout << "o_lower = " << o_lower << "\n";
+        std::cout << "o_upper = " << o_upper << "\n";
+        std::cout << "s_upper - o_lower = " << s_upper - o_lower << "\n";
+
+
+        if(s_upper < o_lower || s_lower > o_upper) { return false; }
+    }
+    */
+
+    return true; 
+}
 
 template<typename Vector, std::size_t d>
+template<typename Node>
 void AbstractOrthtree<Vector, d>::traverseBFSCore(const std::function 
-        <void(BaseNode *)>& processNode) {
+        <void(Node *)>& processNode) {
 
-    std::queue<BaseNode*> node_queue({this->root}); 
+    std::queue<Node*> node_queue({static_cast<Node*>(this->root)}); 
+
     while(!node_queue.empty()) {
 
-        BaseNode * current_node = node_queue.front();
+        Node * current_node = node_queue.front();
         node_queue.pop(); 
 
         processNode(current_node); 
 
         for(int i = 0; i < n_children; i++) {
             if(current_node->children[i] != nullptr)  {
-                node_queue.push(current_node->children[i]);
+                node_queue.push(static_cast<Node*>(current_node->children[i]));
             }
         }
     }

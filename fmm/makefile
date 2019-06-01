@@ -4,15 +4,15 @@ EXT = cpp
 DEBUGFLAGS = -g -ggdb -O3 #-fno-inline
 OFLAGS = -O3 #-fopenmp
 #OFLAGS = -O3 -ffast-math #-fopenmp
-LIBS = -lgsl -lcblas
-CXXFLAGS = -Wall -fno-builtin -std=c++17 -pedantic  
+LIBS = -lstdc++fs -lgsl -lcblas 
+CXXFLAGS = -Wall -Wno-unknown-pragmas -fno-builtin -std=c++17 -pedantic 
 
-TARGET = test_point_orthtree
+TARGET = test/fmm_tree
 DEPENDS = makefile $(TARGET).$(EXT) abstract_orthtree.hpp balanced_orthtree.hpp \
 		  balanced_point_orthtree.hpp adaptive_point_orthtree.hpp vector.hpp \
 		  abstract_fmm_tree.hpp balanced_fmm_tree.hpp series_expansion.hpp \
 		  multipole_expansion.hpp local_expansion.hpp debugging.hpp \
-		  test_point_orthtree.cpp
+		  adaptive_fmm_tree.hpp
 
 all: $(TARGET)
 

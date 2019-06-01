@@ -2,8 +2,9 @@
 #define ADAPTIVE_FMM_TREE_H
 
 #include <iomanip> 
+#include <filesystem> 
 
-#include "balanced_orthtree.hpp"
+#include "adaptive_orthtree.hpp"
 #include "abstract_fmm_tree.hpp"
 #include "multipole_expansion.hpp"
 #include "local_expansion.hpp"
@@ -11,64 +12,68 @@
 
 namespace fmm {
 
-template<typename Vector, typename Source, std::size_t d>
-class BalancedFmmTree: public AdaptiveOrthtree<Vector, d>, public AbstractFmmTree<Vector, Source, d> {
+template<std::size_t d>
+class AdaptiveFmmTree: public AdaptiveOrthtree<Vector_<d>, d>, 
+    public AbstractFmmTree<d> {
 
 protected:
 
     struct FmmNode; 
     struct FmmLeaf; 
 
+    using Vector = Vector_<d>; 
+    using PointSource = PointSource_<d>;
+
     using AOT = AbstractOrthtree<Vector, d>;
-    using AFMMT = AbstractFmmTree<Vector, Source, d>;
+    using ADOT = AdaptiveOrthtree<Vector, d>;
+    using AFMMT = AbstractFmmTree<d>;
     using BaseNode = typename AOT::BaseNode; 
-    using ME = MultipoleExpansion<Vector, Source, d>;
-    using LE = LocalExpansion<Vector, Source, d>;
+    using ME = MultipoleExpansion<Vector, PointSource, d>;
+    using LE = LocalExpansion<Vector, PointSource, d>;
 
-    FmmNode* nodes;     
-    FmmLeaf* leaves; 
+    std::vector<std::vector<FmmNode*>> nodes;  // store nodes and leaves levelwise
+    std::vector<std::vector<FmmLeaf*>> leaves; 
 
-    std::size_t n_nodes;
-    std::size_t n_leaves;
+    std::size_t max_sources_per_leaf;
 
 public: 
-    BalancedFmmTree(std::vector<Source>& sources, std::size_t items_per_cell, 
-            double eps);
+    AdaptiveFmmTree(std::vector<PointSource>& sources, 
+            std::size_t max_sources_per_leaf, double eps);
 
-    double evaluatePotential(const Vector& eval_point) const; 
-    Vector evaluateForcefield(const Vector& eval_point) const; 
-    std::vector<double> evaluateParticlePotentials() const; 
-    std::vector<Vector> evaluateParticleForcefields() const; 
+    double evaluatePotential(const Vector& eval_point) const override; 
+    Vector evaluateForcefield(const Vector& eval_point) const override; 
 
-    void traverseBFSCore(const std::function <void(FmmNode *)>& processNode);
     void toFile() override;
 
-    ~BalancedFmmTree() { 
-        delete[] this->nodes;
-        delete[] this->leaves;
-    }
+    ~AdaptiveFmmTree() { delete this->root; }
 
 private:
-    void expandNode(FmmNode* node, std::size_t& node_offset, 
-        std::size_t& leaf_offset);
-    void distributeSources();
+    static std::array<std::vector<PointSource>, AOT::n_children> refineOrthant(
+        const Vector& center, const std::vector<PointSource>& sources);
+    void buildTree(FmmNode* node, std::vector<PointSource>& sources, 
+            std::size_t max_sources_per_leaf);
     void computeNodeNeighbourhood(FmmNode* node); 
 
-    void localToLocal(FmmNode& node);
-    void multipoleToLocal(FmmNode& node);
+    void sourceToLocal(FmmNode& node);
+    void initializeLocalExpansion(FmmNode& node); 
+
+    FmmLeaf& getContainingLeaf(const Vector& point) const; 
+
+
 };
 
-template<typename Vector, typename Source, std::size_t d>
-struct BalancedFmmTree<Vector, Source, d>::FmmNode: BaseNode {
+template<std::size_t d>
+struct AdaptiveFmmTree<d>::FmmNode: BaseNode {
 
-    using ME = MultipoleExpansion<Vector, Source, d>;
-    using LE = LocalExpansion<Vector, Source, d>;
+    using ME = MultipoleExpansion<Vector, PointSource, d>;
+    using LE = LocalExpansion<Vector, PointSource, d>;
 
     ME multipole_expansion; 
     LE local_expansion;
 
-    std::vector<FmmNode*> interaction_list;
-    std::vector<FmmNode*> near_neighbours;
+    std::vector<FmmNode*> near_neighbours;  // list U for leaves, cont .all NNs for nodes
+    std::vector<FmmNode*> interaction_list; // list V (see docs)
+    std::vector<FmmLeaf*> X_list;           // list X (see docs)
 
     FmmNode() {} // Empty default constructor
     FmmNode(Vector center, double box_length, std::size_t depth, 
@@ -76,172 +81,162 @@ struct BalancedFmmTree<Vector, Source, d>::FmmNode: BaseNode {
         BaseNode(center, box_length, depth, parent), 
         local_expansion(center, expansion_order) {};
 
-    virtual ~FmmNode() {};
+    virtual bool isLeaf() { return false; }
+
+    virtual ~FmmNode() { for(auto child : this->children) { delete child; } }
 };
 
-template<typename Vector, typename Source, std::size_t d>
-struct BalancedFmmTree<Vector, Source, d>::FmmLeaf: 
-        BalancedFmmTree<Vector, Source, d>::FmmNode {
+template<std::size_t d>
+struct AdaptiveFmmTree<d>::FmmLeaf: 
+        AdaptiveFmmTree<d>::FmmNode {
 
-    using Super = BalancedFmmTree<Vector, Source, d>::FmmNode;
+    using Super = AdaptiveFmmTree<d>::FmmNode;
 
-    std::vector<Source> * sources;
+    std::vector<FmmNode*> W_list; // list W (see docs)
+    std::vector<PointSource> sources;
 
     FmmLeaf() {};
     FmmLeaf(Vector center, double box_length, std::size_t depth, 
         Super * parent, std::size_t expansion_order): Super(center, 
         box_length, depth, parent, expansion_order), sources() {};
 
-    virtual ~FmmLeaf() { delete sources; }
+    FmmLeaf(Vector center, double box_length, std::size_t depth, 
+        Super * parent, std::size_t expansion_order, 
+        std::vector<PointSource> sources): Super(center, box_length, depth, 
+        parent, expansion_order), sources(sources) {};
+
+    virtual bool isLeaf() override { return true; }
+
+    virtual ~FmmLeaf() {}
 };
 
-template<typename Vector, typename Source, std::size_t d>
-BalancedFmmTree<Vector, Source, d>::BalancedFmmTree(std::vector<Source>& sources, 
-        std::size_t sources_per_cell, double eps): BalancedOrthtree<Vector, d>(),
-        AbstractFmmTree<Vector, Source, d>(sources) { 
-
-    //We compute nearest neighbour & interaction lists by euclidean distance,
-    //this breaks down above three dimensions
-    static_assert(d <= 3lu); 
+template<std::size_t d>
+AdaptiveFmmTree<d>::AdaptiveFmmTree(std::vector<PointSource>& sources, 
+        std::size_t max_sources_per_leaf, double eps): AdaptiveOrthtree<Vector, d>(),
+        AbstractFmmTree<d>(sources) { 
 
     // Determine expansion order, tree height, numbers of nodes and leaves
-    this->order = (ceil(log(1/eps) / log(2))), 
-    this->height = ceil(log((double)sources.size()/sources_per_cell) 
-        / log(AOT::n_children));
-
-    n_nodes  = pow(AOT::n_children, this->height) / (AOT::n_children - 1);
-    n_leaves = pow(AOT::n_children, this->height);
+    this->order = (ceil(log(1/eps) / log(2))); 
 
     // Determine bounding box lenghts and center 
     auto [lower_bounds, upper_bounds] 
-        = AbstractFmmTree<Vector, Source, d>::getDataRange(sources); 
+        = AbstractFmmTree<d>::getDataRange(sources); 
     auto extents = (upper_bounds - lower_bounds).data(); 
     double box_length = *std::max_element(extents.begin(), extents.end());
     Vector center = 0.5 * (lower_bounds + upper_bounds); 
 
-    if(this->height == 0) { // Short circuit construction
+    if(sources.size() <= max_sources_per_leaf) { // Short circuit construction
 
-        this->nodes = nullptr; 
-        this->leaves = new FmmLeaf[n_leaves /* == 1 */];   
-        this->leaves[0] = FmmLeaf(center, box_length, 0, nullptr, this->order);
-
-        std::vector<Source>* leaf_sources = new std::vector<Source>(this->sources);
-        this->leaves[0].sources = leaf_sources;  
-        this->root = this->leaves; 
+        FmmLeaf * root = new FmmLeaf(center, box_length, 0, nullptr,
+            this->order, sources);
+        this->leaves[0] = std::vector<FmmLeaf*>{root};
+        this->root = root; 
 
         return;
     }
 
-    this->nodes = new FmmNode[n_nodes];   
-    this->leaves = new FmmLeaf[n_leaves];   
+    FmmNode * root = new FmmNode(center, box_length, 0, nullptr, this->order);;
+    this->root = root; 
 
-    std::size_t node_offset = 0; // Indicates the next free location in this->nodes
-    std::size_t leaf_offset = 0; // Indicates the next free location in this->leaves
+    this->nodes.push_back(std::vector<FmmNode*>{root});
+    this->leaves.resize(1); 
 
-    this->nodes[node_offset++] = FmmNode(center, box_length, 0, nullptr, this->order); 
-    this->root = this->nodes;  
-
-    // Set up node and leaf structure:
-    traverseBFSCore(
-        [this, &node_offset, &leaf_offset] (FmmNode * node) 
-        { this->expandNode(node, node_offset, leaf_offset); }
-    ); 
-
-    distributeSources(); // Assign sources to leaves
+    // TODO: consider discarding empty leaves entirely (replace with nullptr)
+    // for optimization 
+    buildTree(this->nodes[0][0], sources, max_sources_per_leaf); 
 
     // Compute neighbourhoods of all nodes
-    traverseBFSCore( 
+    this->template traverseBFSCore<FmmNode>( 
         [this](FmmNode* node) -> void { this->computeNodeNeighbourhood(node); }
     ); 
 
     // Upward pass: Form expansions at leaves and shift to parents
 
-    #pragma omp parallel for
-    for(std::size_t i = 0; i < n_leaves; ++i) { 
-
-        FmmLeaf& leaf = this->leaves[i];
-        leaf.multipole_expansion = ME(leaf.center, this->order, *leaf.sources);
-
+    // TODO: all leaves can be processed in parallel here, not just those on 
+    // the same level. It may be advantageous to concatenate all the leaf levels 
+    // into one big iterator (boost has something for that) s.t. we have only 
+    // one loop to parallelize.
+    for(std::vector<FmmLeaf*>& level : this->leaves) { 
+        #pragma omp parallel for
+        for(unsigned i = 0; i < level.size(); ++i) {
+            FmmLeaf* leaf = level[i];  
+            leaf->multipole_expansion = ME(leaf->center, this->order, leaf->sources);
+        }
     }
 
-    for(int64_t depth = this->height-1; depth >= 0; --depth) {
+    // TODO remove
+    assert(this->height == this->nodes.size()); 
+    assert(this->height+1 == this->leaves.size()); 
 
-        std::size_t n_nodes_at_depth = std::pow(AOT::n_children, depth); 
-        std::size_t offset = (std::pow(AOT::n_children, depth) - 1) 
-            / (AOT::n_children - 1);
-         
+    for(unsigned i = this->height-1; i > 0; --i) { // root can be excl. TODO 1st level too? 
+
+        std::vector<FmmNode*>& node_level = this->nodes[i]; 
+
         // TODO possible if clause to parallelize only if enough grain available
         #pragma omp parallel for 
-        for(std::size_t i = 0; i < n_nodes_at_depth; i++) {
+        for(unsigned j = 0; j < node_level.size(); ++j) {
 
-            FmmNode& node = nodes[offset + i]; 
+            FmmNode* node = node_level[j]; 
             std::vector<const ME*> children_expansions;
 
-            for(BaseNode* child : node.children) {
+            for(BaseNode* child : node->children) {
                 children_expansions.push_back(
-                        &(static_cast<FmmNode*>(child)->multipole_expansion)
+                    &(static_cast<FmmNode*>(child)->multipole_expansion)
                 ); 
             }
 
-            node.multipole_expansion = ME(node.center, children_expansions); 
+            node->multipole_expansion = ME(node->center, children_expansions); 
         }
     }
     
-    // Downward pass: Convert multipole expansions to local expansions
+    // Downward pass: Convert multipole expansions to local expansions, shift 
+    // parent local expansions to children, construct local expansions from
+    // sources contained in leaves contained in the X list
     for(std::size_t depth = 2; depth < this->height; ++depth) {
 
-        std::size_t n_nodes_at_depth = std::pow(AOT::n_children, depth); 
-        std::size_t offset = (std::pow(AOT::n_children, depth) - 1) 
-            / (AOT::n_children - 1);
+        std::vector<FmmNode*>& node_level = this->nodes[depth];
+        std::vector<FmmLeaf*>& leaf_level = this->leaves[depth];
 
-        #pragma omp parallel for
-        for(std::size_t i = 0; i < n_nodes_at_depth; i++) {
+        #pragma omp parallel 
+        {
+            #pragma omp for // TODO nowait ? 
+            for(std::size_t i = 0; i < node_level.size(); i++) {
 
-            FmmNode& current_node = nodes[offset + i]; 
+                FmmNode& node = *node_level[i]; 
+                initializeLocalExpansion(node); 
 
-            // Parent LEs and neighbour MEs have to have been built by now
-            assert(current_node.multipole_expansion.coefficients.size() > 0); 
-            assert(current_node.local_expansion.coefficients.size() > 0);   
+            }
+            #pragma omp for
+            for(std::size_t i = 0; i < leaf_level.size(); i++) {
 
-            //auto t1 = std::chrono::high_resolution_clock::now();
-
-            this->localToLocal(current_node);
-            this->multipoleToLocal(current_node);
-
-            //auto t2 = std::chrono::high_resolution_clock::now();
-            //std::cout << offset + i << "\t" <<  chrono_duration(t2-t1)  << "\n";
-
+                FmmNode& node = *leaf_level[i]; 
+                initializeLocalExpansion(node); 
+            }
         }
     }
 
+    std::vector<FmmLeaf*>& final_level = this->leaves.at(this->height); 
     #pragma omp parallel for 
-    for(std::size_t leaf_index = 0; leaf_index < n_leaves; ++leaf_index) {
+    for(std::size_t i = 0; i < final_level.size(); ++i) {
 
-        FmmNode& current_node = leaves[leaf_index]; 
-
-        // Parent LEs and neighbour MEs have to have been built by now
-        assert(current_node.multipole_expansion.coefficients.size() > 0); 
-        assert(current_node.local_expansion.coefficients.size() > 0);   
-
-//      auto t1 = std::chrono::high_resolution_clock::now();
-
-        this->localToLocal(current_node);
-        this->multipoleToLocal(current_node);
-
-//      auto t2 = std::chrono::high_resolution_clock::now();
-//      std::cout << leaf_index << "\t" <<  chrono_duration(t2-t1)  << "\n";
+        FmmNode& node = *final_level[i]; 
+        initializeLocalExpansion(node); 
     }
 }
 
-template<typename Vector, typename Source, std::size_t d>
-double BalancedFmmTree<Vector, Source, d>::
-        evaluatePotential(const Vector& eval_point) const {
+template<std::size_t d>
+double AdaptiveFmmTree<d>::evaluatePotential(const Vector& eval_point) const {
 
-    uint64_t leaf_index = this->getMortonIndex(this->getLeafBoxIndices(eval_point)); 
-    FmmLeaf& containing_leaf = leaves[leaf_index];  
+    FmmLeaf& containing_leaf = getContainingLeaf(eval_point);  
 
     // Contributions from local expansion of containing leaf
     double pot = containing_leaf.local_expansion.evaluatePotential(eval_point); 
+
+    // Contributions from multipole expansions of nodes & leaves contained in
+    // containing leaf's W list
+    for(FmmNode* node : containing_leaf.W_list) {
+        pot += node->multipole_expansion.evaluatePotential(eval_point);  
+    }
 
     // Contributions from sources in near neighbour leaves (eval. directly).
     // The list of NNs includes the containing_leaf; this one is handled
@@ -249,11 +244,11 @@ double BalancedFmmTree<Vector, Source, d>::
     // with a source location (in which case an exception is thrown)
     for(auto leaf : containing_leaf.near_neighbours) {
         if(leaf != &containing_leaf) {
-            pot += AFMMT::evalScalarInteraction(*(static_cast<FmmLeaf*>(leaf)->sources), 
+            pot += AFMMT::evalScalarInteraction(static_cast<FmmLeaf*>(leaf)->sources, 
                 eval_point, AFMMT::potentialFunction);
         }
         else {
-            pot += AFMMT::evalScalarInteraction(*containing_leaf.sources, 
+            pot += AFMMT::evalScalarInteraction(containing_leaf.sources, 
                     eval_point, AFMMT::safePotentialFunction);
         }
     }
@@ -261,15 +256,20 @@ double BalancedFmmTree<Vector, Source, d>::
     return pot; 
 }
 
-template<typename Vector, typename Source, std::size_t d>
-Vector BalancedFmmTree<Vector, Source, d>::
-        evaluateForcefield(const Vector& eval_point) const {
+template<std::size_t d>
+Vector_<d> AdaptiveFmmTree<d>::evaluateForcefield(const Vector_<d>& eval_point) 
+        const {
 
-    uint64_t leaf_index = this->getMortonIndex(this->getLeafBoxIndices(eval_point)); 
-    FmmLeaf& containing_leaf = leaves[leaf_index];  
+    FmmLeaf& containing_leaf = getContainingLeaf(eval_point);  
 
     // Contributions from local expansion of containing leaf
     Vector force_vec = containing_leaf.local_expansion.evaluateForcefield(eval_point); 
+
+    // Contributions from multipole expansions of nodes & leaves contained in
+    // containing leaf's W list
+    for(FmmNode* node : containing_leaf.W_list) {
+        force_vec += node->multipole_expansion.evaluateForcefield(eval_point);  
+    }
 
     // Contributions from sources in near neighbour leaves (eval. directly).
     // The list of NNs includes the containing_leaf; this one is handled
@@ -278,11 +278,11 @@ Vector BalancedFmmTree<Vector, Source, d>::
     for(auto leaf : containing_leaf.near_neighbours) {
         if(leaf != &containing_leaf) {
             force_vec += AFMMT::evalVectorInteraction(
-                *(static_cast<FmmLeaf*>(leaf)->sources), eval_point, 
+                static_cast<FmmLeaf*>(leaf)->sources, eval_point, 
                 AFMMT::forceFunction);
         }
         else {
-            force_vec += AFMMT::evalVectorInteraction(*containing_leaf.sources, 
+            force_vec += AFMMT::evalVectorInteraction(containing_leaf.sources, 
                     eval_point, AFMMT::safeForceFunction);
         }
     }
@@ -290,95 +290,79 @@ Vector BalancedFmmTree<Vector, Source, d>::
     return force_vec;
 }
 
-template<typename Vector, typename Source, std::size_t d>
-std::vector<double> BalancedFmmTree<Vector, Source, d>::
-        evaluateParticlePotentials() const {
+template<std::size_t d> // TODO
+void AdaptiveFmmTree<d>::toFile() {
 
-    std::vector<double> potentials(this->sources.size()); 
-    for(std::size_t i = 0; i < this->sources.size(); ++i) {
-        potentials[i] = evaluatePotential(this->sources[i].position);
-    }
-
-    return potentials; 
-}
-
-template<typename Vector, typename Source, std::size_t d>
-std::vector<Vector> BalancedFmmTree<Vector, Source, d>::
-        evaluateParticleForcefields() const {
-
-    std::vector<Vector> forces(this->sources.size()); 
-    for(std::size_t i = 0; i < this->sources.size(); ++i) {
-        forces[i] = evaluateForcefield(this->sources[i].position);
-    }
+    namespace fs =  std::filesystem;
+    std::string logs_dir = "./logs"; 
+    fs::create_directory(fs::path(logs_dir)); 
     
-    return forces; 
-}
-
-template<typename Vector, typename Source, std::size_t d>
-void BalancedFmmTree<Vector, Source, d>::traverseBFSCore(
-        const std::function <void(FmmNode*)>& processNode) {
-
-    const std::function <void(BaseNode*)>& processNodeAdaptor = [&processNode]
-        (BaseNode* node) { processNode(static_cast<FmmNode*>(node)); }; 
-
-    AOT::traverseBFSCore(processNodeAdaptor); 
-}
-
-template<typename Vector, typename Source, std::size_t d>
-void BalancedFmmTree<Vector, Source, d>::toFile() {
-
     std::string geometry_filename = "geometry.dat";
     std::string data_filename =  "points.dat";
-    std::string neighbours_filename = "neighbours.dat";
-    std::string interaction_filename = "interactions.dat";
+    std::string neighbours_filename = "neighbour_lists.dat";
+    std::string interaction_filename = "interaction_lists.dat";
+    std::string W_list_filename = "W_lists.dat";
+    std::string X_list_filename = "X_lists.dat";
 
-    std::ofstream geometry_file, data_file, neighbours_file, interaction_file; 
+    std::ofstream geometry_file, data_file, neighbours_file, 
+        interaction_file, W_file, X_file; 
 
-    geometry_file.open(geometry_filename);
-    data_file.open(data_filename);
-    neighbours_file.open(neighbours_filename);
-    interaction_file.open(interaction_filename);
+    geometry_file.open(logs_dir + "/" + geometry_filename);
+    data_file.open(logs_dir + "/" + data_filename);
+    neighbours_file.open(logs_dir + "/" + neighbours_filename);
+    interaction_file.open(logs_dir + "/" + interaction_filename);
+    W_file.open(logs_dir + "/" + W_list_filename);  
+    X_file.open(logs_dir + "/" + X_list_filename);  
 
     std::size_t n_node = 0;
 
-    traverseBFSCore([&](FmmNode* node) {
+    this->template traverseBFSCore<FmmNode>([&](FmmNode* node) {
 
         Vector& center = node->center;
         std::size_t depth = node->depth;
         double box_length = node->box_length;
 
-        // 1. log information about the tree itself
-        geometry_file << n_node << ", " << depth << ", " << box_length;
+        std::stringstream head; 
+        head << n_node << ", " << node->isLeaf() << ", " << depth 
+            << ", " << box_length;
+
+        // 1. log information about the structure of the tree
+        geometry_file << head.str();
         for(auto coord : center.data()) { geometry_file << ", " << coord; }
         geometry_file << std::endl;
 
-        // 2. write to file the sources contained in the various leaves
-        if(node->children[0] == nullptr) { 
+        // 2., 3. if node is a leaf, write to file the sources contained in node
+        // log the associated W list
+        if(node->isLeaf()) { 
 
             FmmLeaf *leaf = static_cast<FmmLeaf*>(node);
-            std::vector<Source> &sources = *leaf->sources; 
+            std::vector<PointSource>& sources = leaf->sources; 
 
             data_file << n_node 
                 << std::setprecision(std::numeric_limits<double>::digits10) 
                 << std::scientific;
 
-            for(const Source &s : sources) {
+            for(const PointSource &s : sources) {
                 for(double coord : s.position.data()) {
                     data_file << ", " << coord;         
                 }
                 data_file << ", " << s.sourceStrength(); 
             }
             data_file << "\n";
+
+            W_file << head.str(); 
+            for(auto partner : leaf->W_list) {
+                for(auto coord : partner->center.data()) {
+                    W_file << ", " << coord; 
+                }
+            }
+            W_file << std::endl;
         }
 
-        // 3., 4. for each node, log near neighbour and interaction lists
-        std::stringstream head; 
-        head << n_node << ", " << depth << ", " << box_length;
+        // 4., 5., 6. log near neighbour, interaction and X lists,
         for(auto coord : center.data()) { head << ", " << coord; }
 
         neighbours_file << head.str(); 
-        interaction_file << head.str(); 
-
         for(auto neighbour : node->near_neighbours) {
             for(auto coord : neighbour->center.data()) {
                 neighbours_file << ", " << coord; 
@@ -386,6 +370,7 @@ void BalancedFmmTree<Vector, Source, d>::toFile() {
         }
         neighbours_file << std::endl;
         
+        interaction_file << head.str(); 
         for(auto partner : node->interaction_list) {
             for(auto coord : partner->center.data()) {
                 interaction_file << ", " << coord; 
@@ -393,154 +378,203 @@ void BalancedFmmTree<Vector, Source, d>::toFile() {
         }
         interaction_file << std::endl;
 
+        X_file << head.str(); 
+        for(auto partner : node->X_list) {
+            for(auto coord : partner->center.data()) {
+                X_file << ", " << coord; 
+            }
+        }
+        X_file << std::endl;
+
         ++n_node;
 
     }); 
+}
+
+template<std::size_t d>
+std::array<std::vector<PointSource_<d>>, AbstractOrthtree<Vector_<d>, d>::
+        n_children> AdaptiveFmmTree<d>::refineOrthant(const Vector_<d>& 
+        center, const std::vector<PointSource_<d>>& sources) {
+
+    std::array<std::vector<PointSource>, AOT::n_children> child_sources; 
+
+    for(auto& source : sources) {
+        unsigned index = ADOT::getOrthant(center, source.position); 
+        child_sources[index].push_back(source);   
+    }
     
-    neighbours_file.close();
-    interaction_file.close(); 
+    return child_sources; 
+}
+
+template<std::size_t d>
+void AdaptiveFmmTree<d>::buildTree(FmmNode* node, 
+        std::vector<PointSource_<d>>& sources, std::size_t max_items_per_leaf) {
+
+    unsigned depth = 0; 
+    bool refine = true; 
+
+    //sources of nodes at depth which still need to be assigned to 
+    //leaves further down in the tree. Unfortunately we incur quite a few copies
+    //of large vectors here, but storage requirements are limited to 2N + overhead, 
+    //and we are cpu bound anyways 
+    std::vector<std::vector<PointSource>> node_sources{sources}; 
+    // temporary storage for sources assigned to the nodes on the next level
+    std::vector<std::vector<PointSource>> temp_node_sources{}; 
+
+    while(refine) { // construct the tree level by level
+
+        ++depth;
+
+        std::vector<FmmNode*> next_node_level; 
+        std::vector<FmmLeaf*> next_leaf_level; 
+
+        assert(temp_node_sources.empty()); // TODO remove
+
+        for(unsigned i = 0; i < nodes[depth-1].size(); ++i) {
+
+            FmmNode* node = nodes[depth-1][i];
+
+            Vector parent_center = node->center; 
+            double child_box_length = node->box_length/2; 
+            unsigned child_depth = node->depth + 1;
+
+            assert(child_depth == depth);  // TODO remove
+
+            auto child_sources = refineOrthant(node->center, node_sources[i]); 
+
+            for(std::size_t i = 0; i < AOT::n_children; ++i) {
+
+                Vector child_center = parent_center + 
+                    child_box_length/2 * AOT::child_center_directions[i];
+
+                if(child_sources[i].size() > max_items_per_leaf) { // refine
+
+                    FmmNode* child = new FmmNode(child_center, child_box_length, 
+                                child_depth, node, this->order);
+                    node->children[i] = child;
+
+                    next_node_level.push_back(child);
+                    temp_node_sources.push_back(child_sources[i]);
+
+                }
+                else {
+                    FmmLeaf* child = new FmmLeaf(child_center, child_box_length, 
+                        child_depth, node, this->order, child_sources[i]);
+                    node->children[i] = child;
+
+                    next_leaf_level.push_back(child);
+
+                }
+            }
+        }
+
+        node_sources.swap(temp_node_sources); 
+        temp_node_sources.clear(); 
+        
+        assert(node_sources.size() == next_node_level.size()); // TODO remove
+        
+        refine = !next_node_level.empty(); 
+        if(refine) {
+            nodes.push_back(next_node_level); 
+        }
+        leaves.push_back(next_leaf_level); 
+    }
+
+    this->height = depth; 
 }
 
 // Computes near neighbour list and interaction list of a node, assuming that 
 // these lists have already been computed for the parent node.
-template<typename Vector, typename Source, std::size_t d>
-void BalancedFmmTree<Vector, Source, d>::computeNodeNeighbourhood(FmmNode* node) {
-
-    auto& interaction_list = node->interaction_list;
-    auto& near_neighbours = node->near_neighbours;
+template<std::size_t d>
+void AdaptiveFmmTree<d>::computeNodeNeighbourhood(FmmNode* node) {
 
     FmmNode* parent = static_cast<FmmNode*>(node->parent);
+    Vector& center = node->center;
     
     // if node is root, node is node's only NN: 
     if(parent == nullptr) { 
-        near_neighbours.push_back(node); 
+        node->near_neighbours.push_back(node); 
         return; 
     }
 
-    Vector& center = node->center;
-    double node_max_neighbour_distance 
-        = this->max_neighbour_distance * node->box_length;
+    for(auto parent_neighbour : parent->near_neighbours) {
 
-    //If node is not root, divide children of node's parent's NNs (including
-    //parent itself) into NNs of node and interaction list of node
-
-    for(auto parent_nn : parent->near_neighbours) {
-        for(auto child : parent_nn->children) {
-            double distance = (center - child->center).norm();  
-            FmmNode* child_ptr = static_cast<FmmNode*>(child);
-            if(distance < node_max_neighbour_distance) { // child is near neighbour
-                near_neighbours.push_back(child_ptr);  
+        if(parent_neighbour->isLeaf()) {
+            // parent neighbour is leaf: if adjacent, add this leaf to node's NN
+            // list, but also add node to that leaf's NN list. 
+            if(node->adjacent(parent_neighbour)) {
+                node->near_neighbours.push_back(parent_neighbour); 
+                if(node->isLeaf()) { parent_neighbour->near_neighbours.push_back(node);
+                }
+            } 
+            // non adjacent leaf => node is descendant of a neighbour of that
+            // leaf but not itself adjacent to the leaf and hence part of this leaf's 
+            // W list; likewise the leaf itself is part of node's X list
+            else {  
+                FmmLeaf* leaf = static_cast<FmmLeaf*>(parent_neighbour);
+                node->X_list.push_back(leaf);
+                leaf->W_list.push_back(node); 
             }
-            else {
-                interaction_list.push_back(child_ptr); 
-                assert(distance > 1.99 * node->box_length); 
+        }
+        else { // the current neighbour is a node, so we look at its children
+            for(auto child : parent_neighbour->children) {
+
+                FmmNode* child_ptr = static_cast<FmmNode*>(child);
+
+                if(node->adjacent(child)) { // child is near neighbour
+                    // If node is a leaf, child gets added to its NN List only
+                    // if child itself is a leaf (else some of the leaf descendants of
+                    // child will get added to node's NN list later on). On the
+                    // other hand if node is not a leaf, all adjacent nodes
+                    // get added to the NN list in this step.
+                    if(!node->isLeaf() || child_ptr->isLeaf()) {
+                        node->near_neighbours.push_back(child_ptr);  
+                    }
+                }
+                else {
+                    node->interaction_list.push_back(child_ptr); 
+
+                    double distance = (center - child->center).norm();  
+                    if(distance < 1.99 * node->box_length) {
+                        throw std::logic_error("Node too close to be part of the "
+                            "interaction list.");
+                    }
+                }
             }
         }
     }
 } 
 
-template<typename Vector, typename Source, std::size_t d>
-void BalancedFmmTree<Vector, Source, d>::expandNode(FmmNode* node, 
-        std::size_t& node_offset, std::size_t& leaf_offset) {
+template<std::size_t d>
+void AdaptiveFmmTree<d>::sourceToLocal(FmmNode& node) {
 
-    Vector parent_center = node->center;
-    double child_box_length = node->box_length/2;
-    std::size_t child_depth = node->depth + 1; 
-
-    if(child_depth < this->height) { // Child at depth < h is node
-        for(std::size_t j = 0; j < AOT::n_children; ++j) {
-
-            Vector child_center = parent_center + 
-                child_box_length/2 * AOT::child_center_directions[j];
-
-            FmmNode* child = this->nodes + node_offset++; 
-            *child = FmmNode(child_center, child_box_length, 
-                    node->depth+1, node, this->order);
-
-            node->children[j] = child; 
-        }
-    }
-    else if(child_depth == this->height) { // Child at depth h is leaf
-
-        for(std::size_t j = 0; j < AOT::n_children; ++j) {
-
-            Vector child_center = parent_center + 
-                child_box_length/2 * AOT::child_center_directions[j];
-
-            FmmLeaf* child = this->leaves + leaf_offset++; 
-            *child = FmmLeaf(child_center, child_box_length, 
-                node->depth + 1, node, this->order);
-
-            node->children[j] = child; 
-        }
+    for(FmmLeaf* leaf : node.X_list) {
+        node.local_expansion += LE(node.center, this->order, leaf->sources);          
     }
 }
 
-template<typename Vector, typename Source, std::size_t d>
-void BalancedFmmTree<Vector, Source, d>::distributeSources() {
-     
-    std::vector<Source> ** leaf_source_vectors = new std::vector<Source>*[n_leaves];
-    for(std::size_t i = 0; i < n_leaves; i++) {
-        leaf_source_vectors[i] = new std::vector<Source>;
-    }
+template<std::size_t d>
+void AdaptiveFmmTree<d>::initializeLocalExpansion(FmmNode& node) {
 
-    // For each source, determine the corresponding leaf. This is equivalent to the
-    // first step in bucket sorting
-    for(std::size_t k = 0; k < this->sources.size(); k++) {
-        auto indices = BalancedOrthtree<Vector, d>::getLeafBoxIndices(
-            this->sources[k].position);
-        leaf_source_vectors[this->getFlatIndex(indices)]->push_back(this->sources[k]);
-    }
-
-    // Assign the 'buckets' of source to their respective leaves.     
-    // std::size_t source_index = 0; //Next pos. in this->sources to write to
-    for(std::size_t k = 0; k < n_leaves; k++) {
-
-        FmmLeaf& leaf = leaves[k]; 
-        auto indices = this->getLeafBoxIndices(leaf.center);
-        leaf.sources = leaf_source_vectors[this->getFlatIndex(indices)]; 
-
-        // Store all
-        // buckets contiguously in the original sources array. Since the leaves
-        // array is in BFS order (or equivalently, Morton sorted), this is
-        // equivalent to sorting the buckets w.r.t. the Morton index of their leaves
-        //
-        // TODO could use this for implicit association of sources and leaves
-        // via offsets in sources instead of explicitly storing copies of
-        // sources in leaves
-
-//      for(auto source : *leaf.sources) {
-//          sources[source_index++] = source; 
-//      }
-    }
-     
-    delete[] leaf_source_vectors; 
+    this->localToLocal(node);
+    this->multipoleToLocal(node);
+    this->sourceToLocal(node); 
 }
 
-template<typename Vector, typename Source, std::size_t d>
-void BalancedFmmTree<Vector, Source, d>::localToLocal(FmmNode& node) {
- 
-    FmmNode * parent = static_cast<FmmNode*>(node.parent);
+template<std::size_t d>
+typename AdaptiveFmmTree<d>::FmmLeaf& AdaptiveFmmTree<d>::
+        getContainingLeaf(const Vector& point) const {
 
-    assert(parent != nullptr);
-    assert(parent->local_expansion.coefficients.size() > 0);   
+    FmmNode* current = static_cast<FmmNode*>(this->root); 
 
-    node.local_expansion += LE(node.center, parent->local_expansion);
-}
-
-
-template<typename Vector, typename Source, std::size_t d>
-void BalancedFmmTree<Vector, Source, d>::multipoleToLocal(FmmNode& node) {
- 
-    std::vector<const ME*> incoming; 
-    for(FmmNode* interaction_partner : node.interaction_list) {
-        incoming.push_back(&interaction_partner->multipole_expansion);  
+    while(!current->isLeaf()) {
+        unsigned child_index = this->getOrthant(current->center, point); 
+        current = static_cast<FmmNode*>(current->children[child_index]);   
     }
 
-    if(incoming.size() > 0) {
-        node.local_expansion += LE(node.center, incoming); 
-    }
+    return *static_cast<FmmLeaf*>(current); 
 }
+
 
 } // namespace fmm
 

@@ -4,12 +4,11 @@
 #include <string> 
 #include <cmath> 
 
-#include "debugging.hpp" 
-#include "vector.hpp" 
-
-#include "multipole_expansion.hpp" 
-#include "local_expansion.hpp" 
-#include "direct.hpp" 
+#include "../debugging.hpp" 
+#include "../vector.hpp" 
+#include "../multipole_expansion.hpp" 
+#include "../local_expansion.hpp" 
+#include "../direct.hpp" 
 
 using namespace std;
 using namespace fmm; 
@@ -17,10 +16,10 @@ using namespace fmm::fields;
 
 int main(int argc, char *argv[]) {
 
-    const size_t d = 3;
+    const size_t d = 2;
 
-    using Vec = Vector<d>;
-    using Src = PointCharge<d>;
+    using Vec = Vector_<d>;
+    using Src = PointSource_<d>;
     using ME = MultipoleExpansion<Vec, Src, d>;
     using LE = LocalExpansion<Vec, Src, d>;
 
@@ -34,7 +33,7 @@ int main(int argc, char *argv[]) {
     const double extent = 16;
 
     const double eps = 1E-5; 
-    const size_t order = ceil(log(1/eps) / log(2)); 
+    const size_t order = ceil(1.3 * log(1/eps) / log(2)); 
     const size_t seed = 42; 
     srand(seed); 
 
@@ -73,7 +72,6 @@ int main(int argc, char *argv[]) {
         sources1.push_back(src1); 
         sources2.push_back(src2); 
     }
-
     
     // Compute reference values directly: 
     const double me_pot_ref = 
@@ -95,24 +93,27 @@ int main(int argc, char *argv[]) {
     // Set up multipole expansion from sources:
     ME me1(center1, order, sources1); 
     ME me2(center2, order, sources2); 
+    // ... and a local expansion from sources: 
+    LE le_from_source(le_center, order, sources1);
+    le_from_source += LE(le_center, order, sources2);
 
     // ... and a multipole expansion by shift: 
     std::vector<const ME*> vme{&me1, &me2};
     ME se(se_center, vme); 
 
     // Set up local expansion from multipole expansions: 
-    LE le(le_center, vme); 
+    LE le_from_me(le_center, vme); 
 
     // And a shifted local expansion: 
-    LE sle(sle_center, le); 
+    LE sle(sle_center, le_from_me); 
 
     std::cout << "Multipole: Reference pot = " << me_pot_ref << ", me pot = " << 
         me1.evaluatePotential(me_eval_point) 
         + me2.evaluatePotential(me_eval_point) << "\n"; 
     std::cout << "Local: Reference pot = " << le_pot_ref << ", le pot = " << 
-        + le.evaluatePotential(le_eval_point) << std::endl; 
+        + le_from_me.evaluatePotential(le_eval_point) << std::endl; 
 
-    std::cout << "LE force is " << le.evaluateForcefield(le_eval_point) << 
+    std::cout << "LE force is " << le_from_me.evaluateForcefield(le_eval_point) << 
         " vs " << le_force_ref << " measured. " << "\n";
 
     std::cout << "ME force is " << me1.evaluateForcefield(me_eval_point) 
@@ -123,7 +124,10 @@ int main(int argc, char *argv[]) {
         + me2.evaluatePotential(me_eval_point) - me_pot_ref)/me_pot_ref; 
     double se_pot_error = abs(se.evaluatePotential(me_eval_point) 
             - me_pot_ref)/me_pot_ref; 
-    double le_pot_error = abs(le.evaluatePotential(le_eval_point) 
+    double le_from_source_pot_error 
+            = abs(le_from_source.evaluatePotential(le_eval_point) 
+            - le_pot_ref)/le_pot_ref; 
+    double le_from_me_pot_error = abs(le_from_me.evaluatePotential(le_eval_point) 
             - le_pot_ref)/le_pot_ref; 
     double sle_pot_error = abs(sle.evaluatePotential(le_eval_point) 
             - le_pot_ref)/le_pot_ref; 
@@ -133,7 +137,10 @@ int main(int argc, char *argv[]) {
         - me_force_ref).norm() / me_force_ref.norm(); 
     double se_force_error = (se.evaluateForcefield(me_eval_point) 
             - me_force_ref).norm() / me_force_ref.norm(); 
-    double le_force_error = (le.evaluateForcefield(le_eval_point) 
+    double le_from_source_force_error 
+            = (le_from_source.evaluateForcefield(le_eval_point) 
+            - le_force_ref).norm() / le_force_ref.norm(); 
+    double le_from_me_force_error = (le_from_me.evaluateForcefield(le_eval_point) 
             - le_force_ref).norm() / le_force_ref.norm(); 
     double sle_force_error = (sle.evaluateForcefield(le_eval_point) 
             - le_force_ref).norm() / le_force_ref.norm(); 
@@ -143,27 +150,41 @@ int main(int argc, char *argv[]) {
     cout << "Potential errors:" << endl 
         << "Multipole: " << me_pot_error << endl 
         << "Multipole (shifted): " << se_pot_error << endl 
-        << "Local:" << le_pot_error << endl
+        << "Local (from source):" << le_from_source_pot_error << endl
+        << "Local (from multipole):" << le_from_me_pot_error << endl
         << "Local (shifted):" << sle_pot_error << endl << endl
 
         << "Force errors: " << endl
         << "Multipole: " << me_force_error << endl 
         << "Multipole (shifted): " << se_force_error << endl
-        << "Local: " << le_force_error << endl
+        << "Local (from source):" << le_from_source_force_error << endl
+        << "Local (from multipole):: " << le_from_me_force_error << endl
         << "Local (shifted): " << sle_force_error << endl; 
+
+    bool any_nan = 
+        isnan(me_pot_error)
+        || isnan(se_pot_error)
+        || isnan(le_from_source_pot_error)
+        || isnan(le_from_me_pot_error)
+        || isnan(sle_pot_error)
+        || isnan(me_force_error)
+        || isnan(le_from_source_force_error)
+        || isnan(se_force_error)
+        || isnan(sle_force_error)
+        || isnan(le_from_me_force_error);
 
     bool failure = 
         me_pot_error >= eps 
         || se_pot_error >= eps 
-        || le_pot_error >= eps 
+        || le_from_me_pot_error >= eps 
         || sle_pot_error >= eps 
         || me_force_error >= eps 
         || se_force_error >= eps
-        || le_force_error >= eps
+        || le_from_me_force_error >= eps
         || sle_force_error >= eps; 
 
     if(failure) { std::cout << "Test failed in expansions_test.cpp" << std::endl; }
 
-    return failure;
+    return any_nan || failure;
 }
 

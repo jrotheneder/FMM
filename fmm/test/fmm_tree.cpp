@@ -9,19 +9,18 @@
 
 #include <valgrind/callgrind.h> 
 
-#include "debugging.hpp" 
-#include "vector.hpp" 
-
-#include "balanced_fmm_tree.hpp" 
+#include "../debugging.hpp" 
+#include "../balanced_fmm_tree.hpp" 
+#include "../adaptive_fmm_tree.hpp" 
 
 using namespace fmm; 
 
 int main(int argc, char *argv[]) {
     
 
-    const size_t N = 10000;
-    const size_t items_per_leaf = 200; 
-    const size_t d = 3;
+    const size_t N = 100000;
+    const size_t items_per_leaf = 100; 
+    const size_t d = 2;
     const double eps = 1E-3; 
     const size_t order = ceil(log(1/eps) / log(2)); 
     const size_t seed = 42; 
@@ -41,22 +40,31 @@ int main(int argc, char *argv[]) {
 
     Vec shift(8);
 
+    auto centers = AbstractOrthtree<Vec, d>::getChildCenterDirections(); 
+    for(std::size_t i = 0; i < (1 << d) ; ++i) {
+        centers[i] = centers[i] * (((rand() % 2) ? 1 : 1.5) * extent); 
+    }
+
     for(size_t i = 0; i < N; i++) {
         Vec v;      
         for(size_t j = 0; j < d; ++j) {
             v[j] =  extent * ((double) rand() / (RAND_MAX)) - extent/2;
         }
+
+        v += centers[rand() % AbstractOrthtree<Vec, d>::n_children];
+
         double q = (double) rand() / (RAND_MAX) * (i % 2 ? 1 : -1);
         Src src {v, q};
 
         sources.push_back(src); 
     }
-
+    
     auto t1 = std::chrono::high_resolution_clock::now();
 
-//  CALLGRIND_TOGGLE_COLLECT;
-    BalancedFmmTree<d>q(sources, items_per_leaf, eps);
-//  CALLGRIND_TOGGLE_COLLECT;
+    CALLGRIND_TOGGLE_COLLECT;
+//  BalancedFmmTree<d>q(sources, items_per_leaf, eps);
+    AdaptiveFmmTree<d>q(sources, items_per_leaf, eps);
+    CALLGRIND_TOGGLE_COLLECT;
 
     auto t2 = std::chrono::high_resolution_clock::now();
 
@@ -78,10 +86,14 @@ int main(int argc, char *argv[]) {
     auto potentials = q.evaluateParticlePotentials(); 
     CALLGRIND_TOGGLE_COLLECT;
     t2 = std::chrono::high_resolution_clock::now();
-    std::cout << "fmm took " << chrono_duration(t2-t1) << std::endl; 
+    std::cout << "fmm potential computation: " 
+        << chrono_duration(t2-t1) << "s" << std::endl; 
 
+    /*
     t1 = std::chrono::high_resolution_clock::now();
     std::vector<double> ref_potentials(sources.size()); 
+
+    #pragma omp parallel for
     for(std::size_t i = 0; i < sources.size(); ++i) {
         ref_potentials[i] =  evalScalarInteraction(sources, 
             sources[i].position, EPot);
@@ -93,27 +105,40 @@ int main(int argc, char *argv[]) {
         potentials.begin(), potentials.end(), ref_potentials.begin(), 
         diffs.begin(), [](double a, double b) -> double { return std::abs(a-b); } 
     );
-    std::cout << "direct took " << chrono_duration(t2-t1) << std::endl; 
+    std::cout << "direct potential computation: " 
+        << chrono_duration(t2-t1) << "s" << std::endl; 
 
-    std::cout << "Mean abs potential deviation: " << 
+    std::cout << "Mean abs. potential deviation: " << 
         std::accumulate(diffs.begin(), diffs.end(), 0.0)/diffs.size() << std::endl;
+    */
 
-//  auto forces = q.evaluateParticleForcefields(); 
-//  std::vector<Vec> ref_forces(sources.size()); 
+/*
+    t1 = std::chrono::high_resolution_clock::now();
+    auto forces = q.evaluateParticleForcefields(); 
+    t2 = std::chrono::high_resolution_clock::now();
+    std::vector<Vec> ref_forces(sources.size()); 
+    std::cout << "fmm force computation: " 
+        << chrono_duration(t2-t1) << "s" << std::endl; 
 
-//  for(std::size_t i = 0; i < sources.size(); ++i) {
-//      ref_forces[i] =  evalVectorInteraction(sources, 
-//          sources[i].position, EFrc);
-//  }
+    t1 = std::chrono::high_resolution_clock::now();
+    #pragma omp parallel for
+    for(std::size_t i = 0; i < sources.size(); ++i) {
+        ref_forces[i] =  evalVectorInteraction(sources, 
+            sources[i].position, EFrc);
+    }
+    t2 = std::chrono::high_resolution_clock::now();
+    std::cout << "direct force computation: " 
+        << chrono_duration(t2-t1) << "s" << std::endl; 
 
-//  std::transform (
-//      forces.begin(), forces.end(), ref_forces.begin(), 
-//      diffs.begin(), [](Vec a, Vec b) -> double { return (a-b).norm(); } 
-//  );
+    std::transform (
+        forces.begin(), forces.end(), ref_forces.begin(), 
+        diffs.begin(), [](Vec a, Vec b) -> double { return (a-b).norm(); } 
+    );
 
 
-//  std::cout << "Mean abs force deviation: " << 
-//      std::accumulate(diffs.begin(), diffs.end(), 0.0)/diffs.size() << std::endl;
+    std::cout << "Mean abs force deviation: " << 
+        std::accumulate(diffs.begin(), diffs.end(), 0.0)/diffs.size() << std::endl;
+*/
 
     return 0;
 

@@ -28,6 +28,8 @@ struct LocalExpansion<Vector, Source, 2>: SeriesExpansion<Vector, Source, 2> {
 
     LocalExpansion(): Super() {} // Empty default constructor
     LocalExpansion(const Vector& center, std::size_t order): Super(center, order) {}
+    LocalExpansion(const Vector& center, std::size_t order, 
+            std::vector<Source>& sources);
     LocalExpansion(const Vector& center, std::vector<const ME*> expansions);
     LocalExpansion(const Vector& center, const ME& incoming);
     LocalExpansion(const Vector& center, const LE& incoming);
@@ -49,6 +51,25 @@ LocalExpansion<Vector, Source, 2>::LocalExpansion(const Vector& center,
     this->coefficients = multipoleToLocal(incoming); 
 }
 
+template<typename Vector, typename Source> 
+LocalExpansion<Vector, Source, 2>::LocalExpansion(const Vector& center, 
+        std::size_t order, std::vector<Source>& sources): Super(center, order) {
+    
+    // Compute series expansion coefficients a_0 through a_order: 
+    for(std::size_t i = 0; i < sources.size(); ++i) {
+
+        Source& src = sources[i];
+
+        Complex z{src.position[0], src.position[1]};
+        Complex z_rel = z - this->center; // Express z in box-local coordinates
+
+        this->coefficients[0] += src.sourceStrength() * std::log(z_rel); 
+        for(std::size_t j = 1; j <= order; ++j) {
+            this->coefficients[j] -=  // TODO: consider better pow
+                src.sourceStrength() / std::pow(z_rel, j) / (double)j; 
+        }
+    }
+}
 
 template<typename Vector, typename Source>
 LocalExpansion<Vector, Source, 2>::LocalExpansion(const Vector& center, 
@@ -81,7 +102,7 @@ std::vector<Complex> LocalExpansion<Vector, Source, 2>::multipoleToLocal(
     // Compute b_0:
     std::vector<Complex> coefficients(this->order + 1) ; 
 
-    coefficients[0] += a_0 * log(-z_0); 
+    coefficients[0] += a_0 * std::log(-z_0); 
     for(int k = 1; k <= this->order; ++k) {
         double sign = k % 2 == 0 ? 1 : -1;  
         coefficients[0] += 
@@ -180,6 +201,7 @@ struct LocalExpansion<Vector, Source, 3>: SeriesExpansion<Vector, Source, 3> {
 
     LocalExpansion() {} // Empty default constructor
     LocalExpansion(const Vector& center, std::size_t order);
+    LocalExpansion(const Vector& center, int order, std::vector<Source>& sources);
     LocalExpansion(const Vector& center, std::vector<const ME*> expansions);
     LocalExpansion(const Vector& center, const ME& incoming);
     LocalExpansion(const Vector& center, const LE& incoming);
@@ -198,6 +220,32 @@ struct LocalExpansion<Vector, Source, 3>: SeriesExpansion<Vector, Source, 3> {
 template<typename Vector, typename Source>
 LocalExpansion<Vector, Source, 3>::LocalExpansion(const Vector& center, 
         std::size_t order): Super(center, order) {}
+
+template<typename Vector, typename Source> 
+LocalExpansion<Vector, Source, 3>::LocalExpansion(const Vector& center, 
+        int order, std::vector<Source>& sources): Super(center, order) {
+
+    LE& self = *this; 
+
+    for(std::size_t i = 0; i < sources.size(); ++i) {
+
+        const auto [r, theta, phi]  // Glorious C++17
+            = (sources[i].position - center).toSpherical().data(); 
+
+        // Precomputed values of Y_l^m(theta, phi) 
+        const typename Super::YlmTable sphericalHarmonicY(this->order, theta, phi); 
+
+        double r_pow_inv = 1/r; 
+        for(int n = 0; n <= order; ++n) {  
+            for(int m = -n; m <= n; ++m) {  
+                                                
+                self(n,m) += sources[i].sourceStrength() * r_pow_inv
+                        * sphericalHarmonicY(n, -m);
+            }
+            r_pow_inv /= r; 
+        }
+    }
+}
 
 // TODO consider deleting this constructor (need to change 2d imp. as well)
 template<typename Vector, typename Source>

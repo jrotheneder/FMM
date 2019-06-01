@@ -2,6 +2,7 @@
 #define BALANCED_FMM_TREE_H
 
 #include <iomanip> 
+#include <filesystem> 
 
 #include "balanced_orthtree.hpp"
 #include "abstract_fmm_tree.hpp"
@@ -41,10 +42,7 @@ public:
 
     double evaluatePotential(const Vector& eval_point) const; 
     Vector evaluateForcefield(const Vector& eval_point) const; 
-    std::vector<double> evaluateParticlePotentials() const; 
-    std::vector<Vector> evaluateParticleForcefields() const; 
 
-    void traverseBFSCore(const std::function <void(FmmNode *)>& processNode);
     void toFile() override;
 
     ~BalancedFmmTree() { 
@@ -101,10 +99,6 @@ BalancedFmmTree<d>::BalancedFmmTree(std::vector<PointSource>& sources,
         std::size_t sources_per_cell, double eps): BalancedOrthtree<Vector, d>(),
         AbstractFmmTree<d>(sources) { 
 
-    //We compute nearest neighbour & interaction lists by euclidean distance,
-    //this breaks down above three dimensions
-    static_assert(d <= 3lu); 
-
     // Determine expansion order, tree height, numbers of nodes and leaves
     this->order = (ceil(log(1/eps) / log(2))), 
     this->height = ceil(log((double)sources.size()/sources_per_cell) 
@@ -126,7 +120,8 @@ BalancedFmmTree<d>::BalancedFmmTree(std::vector<PointSource>& sources,
         this->leaves = new FmmLeaf[n_leaves /* == 1 */];   
         this->leaves[0] = FmmLeaf(center, box_length, 0, nullptr, this->order);
 
-        std::vector<PointSource>* leaf_sources = new std::vector<PointSource>(this->sources);
+        std::vector<PointSource>* leaf_sources 
+            = new std::vector<PointSource>(this->sources);
         this->leaves[0].sources = leaf_sources;  
         this->root = this->leaves; 
 
@@ -143,7 +138,7 @@ BalancedFmmTree<d>::BalancedFmmTree(std::vector<PointSource>& sources,
     this->root = this->nodes;  
 
     // Set up node and leaf structure:
-    traverseBFSCore(
+    this->template traverseBFSCore<FmmNode>(
         [this, &node_offset, &leaf_offset] (FmmNode * node) 
         { this->expandNode(node, node_offset, leaf_offset); }
     ); 
@@ -151,7 +146,7 @@ BalancedFmmTree<d>::BalancedFmmTree(std::vector<PointSource>& sources,
     distributePointSources(); // Assign sources to leaves
 
     // Compute neighbourhoods of all nodes
-    traverseBFSCore( 
+    this->template traverseBFSCore<FmmNode>( 
         [this](FmmNode* node) -> void { this->computeNodeNeighbourhood(node); }
     ); 
 
@@ -200,10 +195,6 @@ BalancedFmmTree<d>::BalancedFmmTree(std::vector<PointSource>& sources,
 
             FmmNode& current_node = nodes[offset + i]; 
 
-            // Parent LEs and neighbour MEs have to have been built by now
-            assert(current_node.multipole_expansion.coefficients.size() > 0); 
-            assert(current_node.local_expansion.coefficients.size() > 0);   
-
             //auto t1 = std::chrono::high_resolution_clock::now();
 
             this->template localToLocal<FmmNode>(current_node);
@@ -219,10 +210,6 @@ BalancedFmmTree<d>::BalancedFmmTree(std::vector<PointSource>& sources,
     for(std::size_t leaf_index = 0; leaf_index < n_leaves; ++leaf_index) {
 
         FmmNode& current_node = leaves[leaf_index]; 
-
-        // Parent LEs and neighbour MEs have to have been built by now
-        assert(current_node.multipole_expansion.coefficients.size() > 0); 
-        assert(current_node.local_expansion.coefficients.size() > 0);   
 
 //      auto t1 = std::chrono::high_resolution_clock::now();
 
@@ -292,55 +279,27 @@ Vector_<d> BalancedFmmTree<d>::evaluateForcefield(const Vector_<d>& eval_point)
 }
 
 template<std::size_t d>
-std::vector<double> BalancedFmmTree<d>::evaluateParticlePotentials() const {
-
-    std::vector<double> potentials(this->sources.size()); 
-    for(std::size_t i = 0; i < this->sources.size(); ++i) {
-        potentials[i] = evaluatePotential(this->sources[i].position);
-    }
-
-    return potentials; 
-}
-
-template<std::size_t d>
-std::vector<Vector_<d>> BalancedFmmTree<d>::evaluateParticleForcefields() const {
-
-    std::vector<Vector> forces(this->sources.size()); 
-    for(std::size_t i = 0; i < this->sources.size(); ++i) {
-        forces[i] = evaluateForcefield(this->sources[i].position);
-    }
-    
-    return forces; 
-}
-
-template<std::size_t d>
-void BalancedFmmTree<d>::traverseBFSCore(
-        const std::function <void(FmmNode*)>& processNode) {
-
-    const std::function <void(BaseNode*)>& processNodeAdaptor = [&processNode]
-        (BaseNode* node) { processNode(static_cast<FmmNode*>(node)); }; 
-
-    AOT::traverseBFSCore(processNodeAdaptor); 
-}
-
-template<std::size_t d>
 void BalancedFmmTree<d>::toFile() {
 
+    namespace fs =  std::filesystem;
+    std::string logs_dir = "./logs"; 
+    fs::create_directory(fs::path(logs_dir)); 
+    
     std::string geometry_filename = "geometry.dat";
     std::string data_filename =  "points.dat";
-    std::string neighbours_filename = "neighbours.dat";
-    std::string interaction_filename = "interactions.dat";
+    std::string neighbours_filename = "neighbour_lists.dat";
+    std::string interaction_filename = "interaction_lists.dat";
 
     std::ofstream geometry_file, data_file, neighbours_file, interaction_file; 
 
-    geometry_file.open(geometry_filename);
-    data_file.open(data_filename);
-    neighbours_file.open(neighbours_filename);
-    interaction_file.open(interaction_filename);
+    geometry_file.open(logs_dir + "/" + geometry_filename);
+    data_file.open(logs_dir + "/" + data_filename);
+    neighbours_file.open(logs_dir + "/" + neighbours_filename);
+    interaction_file.open(logs_dir + "/" + interaction_filename);
 
     std::size_t n_node = 0;
 
-    traverseBFSCore([&](FmmNode* node) {
+    this->template traverseBFSCore<FmmNode>([&](FmmNode* node) {
 
         Vector& center = node->center;
         std::size_t depth = node->depth;
@@ -395,9 +354,6 @@ void BalancedFmmTree<d>::toFile() {
         ++n_node;
 
     }); 
-    
-    neighbours_file.close();
-    interaction_file.close(); 
 }
 
 // Computes near neighbour list and interaction list of a node, assuming that 
@@ -417,8 +373,6 @@ void BalancedFmmTree<d>::computeNodeNeighbourhood(FmmNode* node) {
     }
 
     Vector& center = node->center;
-    double node_max_neighbour_distance 
-        = this->max_neighbour_distance * node->box_length;
 
     //If node is not root, divide children of node's parent's NNs (including
     //parent itself) into NNs of node and interaction list of node
@@ -427,12 +381,23 @@ void BalancedFmmTree<d>::computeNodeNeighbourhood(FmmNode* node) {
         for(auto child : parent_nn->children) {
             double distance = (center - child->center).norm();  
             FmmNode* child_ptr = static_cast<FmmNode*>(child);
-            if(distance < node_max_neighbour_distance) { // child is near neighbour
+            if(node->adjacent(child_ptr)) { // child is near neighbour
+            //if(distance < this->max_neighbour_distance * node->box_length) { // child is near neighbour
                 near_neighbours.push_back(child_ptr);  
             }
             else {
                 interaction_list.push_back(child_ptr); 
-                assert(distance > 1.99 * node->box_length); 
+
+                if(distance < 1.99 * node->box_length) {
+//                  std::cerr << "Distance is " << distance 
+//                      << ", vs 1.99 * node->box_length = " 
+//                      << 1.99 * node->box_length << "\n";
+//                  std::cerr << "Depth is " << node->depth << "\n";
+//                  std::cerr << node->center << "\t" << node->box_length << "\n";
+//                  std::cerr << child->center << "\t" << child->box_length << "\n";
+                    throw std::logic_error("Node too close to be part of the "
+                            "interaction list.");
+                } 
             }
         }
     }

@@ -46,6 +46,7 @@ struct Vector_ {
     }
 
     bool operator==(const Vector_& rhs) const { return this->coords == rhs.coords; }
+    bool operator!=(const Vector_& rhs) const { return !(*this == rhs); }
 
     std::array<double, d>& data() { return coords; }
     const std::array<double, d>& data() const { return coords; }

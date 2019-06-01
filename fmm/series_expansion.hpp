@@ -1,6 +1,8 @@
 #ifndef SERIES_EXPANSION_H
 #define SERIES_EXPANSION_H
 
+#include <stdexcept> 
+
 #include <boost/math/special_functions/factorials.hpp>
 #include <boost/math/special_functions/spherical_harmonic.hpp>
 #include <boost/math/constants/constants.hpp>
@@ -94,14 +96,19 @@ struct SeriesExpansion<Vector, Source, 2> {
 
 template<typename Vector, typename Source>
 SeriesExpansion<Vector, Source, 2>::SeriesExpansion(const Vector& center, 
-        int order): order(order), center({center[0], center[1]}), coefficients(order + 1) {}
+        int order): order(order), center({center[0], center[1]}), 
+        coefficients(order + 1) {}
 
 template<typename Vector, typename Source>
 SeriesExpansion<Vector, Source, 2>& SeriesExpansion<Vector, Source, 2>::
         operator+=(const SeriesExpansion& rhs) {
 
-    assert(coefficients.size() == rhs.coefficients.size());
-    assert(this->center == rhs.center);
+    if(coefficients.size() != rhs.coefficients.size() 
+            || this->center != rhs.center) {
+
+        throw std::logic_error("Series Expansions can only be added if "
+            "they are of the same order and w.r.t. the same origin."); 
+    }
 
     std::transform (
         coefficients.begin(), coefficients.end(), rhs.coefficients.begin(), 
@@ -340,9 +347,12 @@ template<typename Vector, typename Source>
 SeriesExpansion<Vector, Source, 3>& SeriesExpansion<Vector, Source, 3>::
         operator+=(const SeriesExpansion& rhs) {
 
-    // TODO exception this
-    assert(coefficients.size() == rhs.coefficients.size());
-    assert(this->center == rhs.center);
+    if(coefficients.size() != rhs.coefficients.size() 
+            || this->center != rhs.center) {
+
+        throw std::logic_error("Series Expansions can only be added if "
+            "they are of the same order and w.r.t. the same origin."); 
+    }
 
     std::transform (
         coefficients.begin(), coefficients.end(), rhs.coefficients.begin(), 

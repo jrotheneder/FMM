@@ -6,20 +6,26 @@
 template<typename Vector, std::size_t d>
 class AdaptivePointOrthtree: public AdaptiveOrthtree<Vector, d> {
 
+protected: 
+
     using AOT = AbstractOrthtree<Vector, d>;
     using Super = AdaptiveOrthtree<Vector, d>;
     using BaseNode = typename AOT::BaseNode; 
     using AbstractOrthtree<Vector, d>::height;
 
-public:
     struct Node; 
     struct Leaf; 
+
+    std::vector<std::vector<Node*>> nodes;  // nodes at depth i stored in nodes[i]
+    std::vector<std::vector<Leaf*>> leaves; // leaves at depth i stored in leaves[i]
+
+public:
 
     AdaptivePointOrthtree(std::vector<Vector> points, std::size_t s);
 
     static std::array<std::vector<Vector>, AOT::n_children> refineOrthant(
         const Vector& center, const std::vector<Vector>& sources);
-    void splitNode(Node* node, std::vector<Vector> points, 
+    void buildTree(Node* node, std::vector<Vector>& points, 
             std::size_t max_items_per_leaf);
 
     void toFile() override; 
@@ -34,7 +40,13 @@ struct AdaptivePointOrthtree<Vector, d>::Node: BaseNode {
     Node(Vector center, double box_length, std::size_t depth, 
         Node * parent): BaseNode(center, box_length, depth, parent) {}
 
-    virtual ~Node() { for(auto child : this->children) { delete child; } }
+    virtual ~Node() { 
+        for(auto child : this->children) { 
+            if(child != nullptr) {
+                delete child; 
+            }
+        } 
+    }
 };
 
 template<typename Vector, std::size_t d>
@@ -51,7 +63,7 @@ struct AdaptivePointOrthtree<Vector, d>::Leaf: Node {
 
 template<typename Vector, std::size_t d>
 AdaptivePointOrthtree<Vector, d>::AdaptivePointOrthtree(std::vector<Vector> points, 
-        std::size_t max_items_per_leaf): Super() {
+        std::size_t max_items_per_leaf): Super(), leaves(1) {
 
     // Determine bounding box lenghts and center    
 
@@ -61,11 +73,15 @@ AdaptivePointOrthtree<Vector, d>::AdaptivePointOrthtree(std::vector<Vector> poin
     Vector center = 0.5 * (lower_bounds + upper_bounds); 
 
     // Build tree: 
+    // TODO handle case where root is the only leaf
     std::size_t child_depth = 0; 
     this->height = 0; 
-    this->root = new Node(center, box_length, child_depth, nullptr); 
 
-    splitNode(static_cast<Node*>(this->root), points, max_items_per_leaf); 
+    Node * root = new Node(center, box_length, child_depth, nullptr);
+    this->nodes.push_back(std::vector<Node*>{root});
+    this->root = root; 
+
+    buildTree(this->nodes[0][0], points, max_items_per_leaf); 
 }
 
 template<typename Vector, std::size_t d>
@@ -84,36 +100,73 @@ std::array<std::vector<Vector>, AbstractOrthtree<Vector, d>::n_children>
 }
 
 template<typename Vector, std::size_t d>
-void AdaptivePointOrthtree<Vector, d>::splitNode(Node* node, 
-        std::vector<Vector> points, std::size_t max_items_per_leaf) {
+void AdaptivePointOrthtree<Vector, d>::buildTree(Node* node, 
+        std::vector<Vector>& points, std::size_t max_items_per_leaf) {
 
-    Vector parent_center = node->center; 
-    double child_box_length = node->box_length/2; 
-    unsigned child_depth = node->depth + 1;
+    unsigned depth = 0; 
+    bool refine = true; 
 
-    if(child_depth >= this->height) {
-        this->height = child_depth; 
-    }
+    //sources of nodes at depth which still need to be assigned to 
+    //leaves further down in the tree. Unfortunately we incur quite a few copies
+    //of large vectors here, but storage requirements are limited to 2N + overhead, 
+    //and we are cpu bound anyways 
+    std::vector<std::vector<Vector>> node_sources{points}; 
+    // temporary storage for sources assigned to the nodes on the next level
+    std::vector<std::vector<Vector>> temp_node_sources{}; 
 
-    auto child_sources = refineOrthant(node->center, points); 
+    while(refine) { // construct the tree level by level
 
-    for(std::size_t i = 0; i < AOT::n_children; ++i) {
+        ++depth;
+        nodes.push_back(std::vector<Node*>()); 
+        leaves.push_back(std::vector<Leaf*>()); 
 
-        Vector child_center = parent_center + 
-            child_box_length/2 * AOT::child_center_directions[i];
+        assert(temp_node_sources.empty());
 
-        if(child_sources[i].size() > max_items_per_leaf) { // child needs refinement
+        for(unsigned i = 0; i < nodes[depth-1].size(); ++i) {
 
-            Node * child = new Node(child_center, child_box_length, 
-                        child_depth, node);
-            node->children[i] = child; 
-            splitNode(child, child_sources[i], max_items_per_leaf); 
+            Node* node = nodes[depth-1][i];
+
+            Vector parent_center = node->center; 
+            double child_box_length = node->box_length/2; 
+            unsigned child_depth = node->depth + 1;
+
+            assert(child_depth == depth); 
+
+            auto child_sources = refineOrthant(node->center, node_sources[i]); 
+
+            for(std::size_t i = 0; i < AOT::n_children; ++i) {
+
+                Vector child_center = parent_center + 
+                    child_box_length/2 * AOT::child_center_directions[i];
+
+                if(child_sources[i].size() > max_items_per_leaf) { // refine
+
+                    Node* child = new Node(child_center, child_box_length, 
+                                child_depth, node);
+                    node->children[i] = child;
+
+                    nodes[depth].push_back(child);
+                    temp_node_sources.push_back(child_sources[i]);
+
+                }
+                else {
+                    Leaf* child = new Leaf(child_center, child_box_length, 
+                        child_depth, node, child_sources[i]);
+                    node->children[i] = child;
+
+                    leaves[depth].push_back(child);
+
+                }
+            }
         }
-        else {
-            node->children[i] = new Leaf(child_center, child_box_length, 
-                        child_depth, node, child_sources[i]);  
-        }
+
+        node_sources.swap(temp_node_sources); 
+        temp_node_sources.clear(); 
+        
+        assert(node_sources.size() == nodes[depth].size());
+        refine = !nodes[depth].empty(); 
     }
+    this->height = depth; 
 }
 
 template<typename Vector, std::size_t d>
@@ -128,7 +181,7 @@ void AdaptivePointOrthtree<Vector, d>::toFile() {
 
     std::size_t n_node = 0;
 
-    AOT::traverseBFSCore([&](BaseNode * current) {
+    this-> template traverseBFSCore<BaseNode>([&](BaseNode * current) {
 
         Vector center = current->center;
         double box_length = current->box_length;
