@@ -44,6 +44,32 @@ public:
     Vector evaluateForcefield(const Vector& eval_point) const override; 
 
     void toFile() override;
+    void executeTest() const {
+
+        #pragma omp parallel for
+        for(std::size_t i = 0; i < this->sources.size(); ++i) {
+
+            double fmm_pot = evaluatePotential(this->sources[i].position);
+            double ref_pot = AFMMT::evalScalarInteraction(this->sources, 
+                this->sources[i].position, AFMMT::safePotentialFunction);
+            double rel_dev = std::abs((fmm_pot-ref_pot)/ref_pot);
+
+
+            //std::cout << i << "\t" << rel_dev  << "\n";
+            if(rel_dev > 1E-3) {
+                #pragma omp critical
+                std::cout << "Deviation of " << rel_dev << " detected for sources[" 
+                    << i << "] = " << this->sources[i] << "\n";
+                std::cout << i << "\t" << ref_pot << "\t" << fmm_pot << "\t"
+                    << rel_dev << "\t"  << "\n";
+
+                return; 
+
+            }
+        }
+        
+        
+    }
 
     ~AdaptiveFmmTree() { delete this->root; }
 
@@ -119,8 +145,7 @@ AdaptiveFmmTree<d>::AdaptiveFmmTree(std::vector<PointSource>& sources,
     this->order = (ceil(log(1/eps) / log(2))); 
 
     // Determine bounding box lenghts and center 
-    auto [lower_bounds, upper_bounds] 
-        = AbstractFmmTree<d>::getDataRange(sources); 
+    auto [lower_bounds, upper_bounds] = AbstractFmmTree<d>::getDataRange(); 
     auto extents = (upper_bounds - lower_bounds).data(); 
     double box_length = *std::max_element(extents.begin(), extents.end());
     Vector center = 0.5 * (lower_bounds + upper_bounds); 
@@ -168,11 +193,10 @@ AdaptiveFmmTree<d>::AdaptiveFmmTree(std::vector<PointSource>& sources,
     assert(this->height == this->nodes.size()); 
     assert(this->height+1 == this->leaves.size()); 
 
-    for(unsigned i = this->height-1; i > 0; --i) { // root can be excl. TODO 1st level too? 
+    for(unsigned i = this->height-1; i > 1; --i) { 
 
         std::vector<FmmNode*>& node_level = this->nodes[i]; 
 
-        // TODO possible if clause to parallelize only if enough grain available
         #pragma omp parallel for 
         for(unsigned j = 0; j < node_level.size(); ++j) {
 
@@ -222,6 +246,8 @@ AdaptiveFmmTree<d>::AdaptiveFmmTree(std::vector<PointSource>& sources,
         FmmNode& node = *final_level[i]; 
         initializeLocalExpansion(node); 
     }
+
+    //executeTest(); 
 }
 
 template<std::size_t d>
@@ -234,8 +260,22 @@ double AdaptiveFmmTree<d>::evaluatePotential(const Vector& eval_point) const {
 
     // Contributions from multipole expansions of nodes & leaves contained in
     // containing leaf's W list
+
+//  std::cout << "containing_leaf.center = " << containing_leaf.center << "\n";
+//  std::cout << "evaluation_point: " << eval_point  << "\n";
     for(FmmNode* node : containing_leaf.W_list) {
+//      std::cout << "node->me.center: " << node->multipole_expansion.center  << "\n";
+//      std::cout << "node->center: " << node->center  << "\n";
         pot += node->multipole_expansion.evaluatePotential(eval_point);  
+
+//      std::cout << "ME.evalPot() returned " << 
+//          node->multipole_expansion.evaluatePotential(eval_point)
+//          << " vs reference " << 
+//          AFMMT::evalScalarInteraction(static_cast<FmmLeaf*>(node)->sources, 
+//          eval_point, AFMMT::potentialFunction) << "\n"; 
+
+
+//      std::cout << 2 << "\t" << pot << "\n";
     }
 
     // Contributions from sources in near neighbour leaves (eval. directly).

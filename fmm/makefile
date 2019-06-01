@@ -1,9 +1,9 @@
-CXX = g++
+CXX = icc
 EXT = cpp
 
 DEBUGFLAGS = -g -ggdb -O3 #-fno-inline
-OFLAGS = -O3 #-fopenmp
-#OFLAGS = -O3 -ffast-math #-fopenmp
+#OFLAGS = -O3 -fopenmp
+OFLAGS = -O3 -ffast-math -qopenmp
 LIBS = -lstdc++fs -lgsl -lcblas 
 CXXFLAGS = -Wall -Wno-unknown-pragmas -fno-builtin -std=c++17 -pedantic 
 
@@ -12,7 +12,7 @@ DEPENDS = makefile $(TARGET).$(EXT) abstract_orthtree.hpp balanced_orthtree.hpp 
 		  balanced_point_orthtree.hpp adaptive_point_orthtree.hpp vector.hpp \
 		  abstract_fmm_tree.hpp balanced_fmm_tree.hpp series_expansion.hpp \
 		  multipole_expansion.hpp local_expansion.hpp debugging.hpp \
-		  adaptive_fmm_tree.hpp
+		  adaptive_fmm_tree.hpp direct.hpp
 
 all: $(TARGET)
 
@@ -39,8 +39,12 @@ callgrind: debug
 		--collect-atstart=no --callgrind-out-file=./callgrind.out ./$(TARGET) 
 	kcachegrind callgrind.out & 
 
+perf: all
+	perf stat -r 5 ./$(TARGET)
+
 clean:
-	rm -f *.o $(TARGET) *.dat *.out
+	rm -f *.o $(TARGET) logs/*.dat *.out
+
 
 
 

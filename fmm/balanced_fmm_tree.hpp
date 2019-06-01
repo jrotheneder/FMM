@@ -160,13 +160,12 @@ BalancedFmmTree<d>::BalancedFmmTree(std::vector<PointSource>& sources,
 
     }
 
-    for(int64_t depth = this->height-1; depth >= 0; --depth) {
+    for(unsigned depth = this->height-1; depth > 1; --depth) {
 
         std::size_t n_nodes_at_depth = std::pow(AOT::n_children, depth); 
         std::size_t offset = (std::pow(AOT::n_children, depth) - 1) 
             / (AOT::n_children - 1);
          
-        // TODO possible if clause to parallelize only if enough grain available
         #pragma omp parallel for 
         for(std::size_t i = 0; i < n_nodes_at_depth; i++) {
 
@@ -197,8 +196,8 @@ BalancedFmmTree<d>::BalancedFmmTree(std::vector<PointSource>& sources,
 
             //auto t1 = std::chrono::high_resolution_clock::now();
 
-            this->template localToLocal<FmmNode>(current_node);
-            this->template multipoleToLocal<FmmNode>(current_node);
+            this->localToLocal(current_node);
+            this->multipoleToLocal(current_node);
 
             //auto t2 = std::chrono::high_resolution_clock::now();
             //std::cout << offset + i << "\t" <<  chrono_duration(t2-t1)  << "\n";

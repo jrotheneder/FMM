@@ -134,7 +134,8 @@ const Complex& SeriesExpansion<Vector, Source, 2>::operator()(unsigned n)
 }
 
 template<typename Vector, typename Source> 
-std::ostream& operator<<(std::ostream& o, SeriesExpansion<Vector, Source, 2>& se) {
+std::ostream& operator<<(std::ostream& o, 
+        const SeriesExpansion<Vector, Source, 2>& se) {
 
     o << "n\tRe a_n\tIm a_n\n";
     for(int n = 0; n <= se.order; ++n) { 
@@ -381,7 +382,8 @@ const Complex& SeriesExpansion<Vector, Source, 3>::operator()(unsigned n, int m)
 }
 
 template<typename Vector, typename Source> 
-std::ostream& operator<<(std::ostream& o, SeriesExpansion<Vector, Source, 3>& se) {
+std::ostream& operator<<(std::ostream& o, 
+        const SeriesExpansion<Vector, Source, 3>& se) {
 
     unsigned coeff_index = 0; 
 

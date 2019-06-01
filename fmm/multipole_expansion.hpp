@@ -107,14 +107,17 @@ template<typename Vector, typename Source>
 double MultipoleExpansion<Vector, Source, 2>::evaluatePotential(
         const Vector& eval_point) const {
 
+
     Complex z{eval_point[0], eval_point[1]}; // get complex repr.
     Complex z_rel = z - this->center; 
     double Q = this->coefficients[0].real(); 
 
+    //std::cout << "z_rel = " << z_rel << "\n";
+
     Complex result = Q * log(z_rel); 
     
     // TODO Horner scheme this
-    for(int j = this->coefficients.size(); j >= 1; --j) { 
+    for(unsigned j = 1; j < this->coefficients.size(); ++j) { 
         result += this->coefficients[j] / pow(z_rel, j);
     }
 
@@ -136,7 +139,7 @@ Vector MultipoleExpansion<Vector, Source, 2>::evaluateForcefield(
     Complex result = Q / z_rel;
 
     // TODO Horner scheme this
-    for(int j = this->coefficients.size(); j >= 1; --j) { 
+    for(unsigned j = 1; j < this->coefficients.size(); ++j) { 
         result -= (double)j * this->coefficients[j] / pow(z_rel, j+1);
     }
 
@@ -288,7 +291,6 @@ double MultipoleExpansion<Vector, Source, 3>::evaluatePotential(
 
         for(int m = -n; m <= n; ++m) {
             pot += this->coefficients[coeff_index++] / pow(r, n+1) 
-                //* sphericalHarmonicY(n, m, theta, phi); 
                 * YLM(n, m, theta, phi); 
         }
     }

@@ -17,12 +17,15 @@ using namespace fmm;
 
 int main(int argc, char *argv[]) {
     
-
     const size_t N = 100000;
-    const size_t items_per_leaf = 100; 
+    const size_t items_per_leaf = 10; 
     const size_t d = 2;
-    const double eps = 1E-3; 
+    const double eps = 1E-4; 
     const size_t order = ceil(log(1/eps) / log(2)); 
+    const double extent = 1E-6;
+    const bool uniform = false; 
+    #define adaptive true
+
     const size_t seed = 42; 
     srand(seed); 
 
@@ -36,7 +39,6 @@ int main(int argc, char *argv[]) {
 
     std::vector<Src> sources;
     Vec center{}; // Origin 
-    double extent = 32;
 
     Vec shift(8);
 
@@ -51,7 +53,9 @@ int main(int argc, char *argv[]) {
             v[j] =  extent * ((double) rand() / (RAND_MAX)) - extent/2;
         }
 
-        v += centers[rand() % AbstractOrthtree<Vec, d>::n_children];
+        if(!uniform) {
+            v += centers[rand() % AbstractOrthtree<Vec, d>::n_children];
+        }
 
         double q = (double) rand() / (RAND_MAX) * (i % 2 ? 1 : -1);
         Src src {v, q};
@@ -62,34 +66,40 @@ int main(int argc, char *argv[]) {
     auto t1 = std::chrono::high_resolution_clock::now();
 
     CALLGRIND_TOGGLE_COLLECT;
-//  BalancedFmmTree<d>q(sources, items_per_leaf, eps);
-    AdaptiveFmmTree<d>q(sources, items_per_leaf, eps);
+    #if adaptive
+        AdaptiveFmmTree<d> fmm_tree(sources, items_per_leaf, eps);
+    #else 
+        BalancedFmmTree<d> fmm_tree(sources, items_per_leaf, eps);
+    #endif
     CALLGRIND_TOGGLE_COLLECT;
 
     auto t2 = std::chrono::high_resolution_clock::now();
 
-    std::cout << "Orthtree height is " << q.getHeight() << ", centered at " <<
-        q.getCenter() << " with parent box size = " << q.getBoxLength() <<  std::endl;
+    std::cout << "N = " << N << ", " << (uniform ? "uniform" : "non-uniform") 
+        << " charge distribution. Orthtree is " 
+        << (adaptive ? "adaptive" : "non-adaptive") << ", height is " 
+        << fmm_tree.getHeight() << ", centered at " << fmm_tree.getCenter() 
+        << " with parent box size = " << fmm_tree.getBoxLength() <<  std::endl;
+
     std::cout << "Tree building took " << chrono_duration(t2-t1) << "s, Order is " 
         << order << std::endl;
-    q.toFile();
+    fmm_tree.toFile();
 
-    Vec eval_point = sources[0].position;  
-    std::cout << q.evaluatePotential(eval_point) << std::endl; 
+    Vec eval_point = sources[1].position;  
+    std::cout << fmm_tree.evaluatePotential(eval_point) << std::endl; 
     std::cout << evalScalarInteraction(sources, eval_point, EPot) << std::endl;
 
-    std::cout << q.evaluateForcefield(eval_point) << std::endl;
+    std::cout << fmm_tree.evaluateForcefield(eval_point) << std::endl;
     std::cout << evalVectorInteraction(sources, eval_point, EFrc) << std::endl;
 
     t1 = std::chrono::high_resolution_clock::now();
     CALLGRIND_TOGGLE_COLLECT;
-    auto potentials = q.evaluateParticlePotentials(); 
+    auto potentials = fmm_tree.evaluateParticlePotentials(); 
     CALLGRIND_TOGGLE_COLLECT;
     t2 = std::chrono::high_resolution_clock::now();
     std::cout << "fmm potential computation: " 
         << chrono_duration(t2-t1) << "s" << std::endl; 
 
-    /*
     t1 = std::chrono::high_resolution_clock::now();
     std::vector<double> ref_potentials(sources.size()); 
 
@@ -103,18 +113,17 @@ int main(int argc, char *argv[]) {
     std::vector<double> diffs(potentials.size()); 
     std::transform (
         potentials.begin(), potentials.end(), ref_potentials.begin(), 
-        diffs.begin(), [](double a, double b) -> double { return std::abs(a-b); } 
+        diffs.begin(), [](double a, double b) -> double { return std::abs((a-b)); } 
     );
     std::cout << "direct potential computation: " 
         << chrono_duration(t2-t1) << "s" << std::endl; 
 
-    std::cout << "Mean abs. potential deviation: " << 
+    std::cout << "Mean relative potential deviation: " << 
         std::accumulate(diffs.begin(), diffs.end(), 0.0)/diffs.size() << std::endl;
-    */
 
 /*
     t1 = std::chrono::high_resolution_clock::now();
-    auto forces = q.evaluateParticleForcefields(); 
+    auto forces = fmm_tree.evaluateParticleForcefields(); 
     t2 = std::chrono::high_resolution_clock::now();
     std::vector<Vec> ref_forces(sources.size()); 
     std::cout << "fmm force computation: " 
@@ -132,11 +141,11 @@ int main(int argc, char *argv[]) {
 
     std::transform (
         forces.begin(), forces.end(), ref_forces.begin(), 
-        diffs.begin(), [](Vec a, Vec b) -> double { return (a-b).norm(); } 
+        diffs.begin(), [](Vec a, Vec b) -> double { return (a-b).norm()/b.norm(); } 
     );
 
 
-    std::cout << "Mean abs force deviation: " << 
+    std::cout << "Mean relative force deviation: " << 
         std::accumulate(diffs.begin(), diffs.end(), 0.0)/diffs.size() << std::endl;
 */
 

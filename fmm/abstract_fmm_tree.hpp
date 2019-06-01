@@ -37,7 +37,7 @@ protected:
     const double max_neighbour_distance = 1.1 * sqrt(d); 
     //in units of box_length + padding to avoid numerical issues
 
-    std::vector<PointSource>& sources;
+    const std::vector<PointSource>& sources;
     std::size_t order;
 
 public: 
@@ -56,8 +56,7 @@ public:
     virtual ~AbstractFmmTree() {}
 
 protected:
-    static std::tuple<Vector, Vector> getDataRange(const 
-        std::vector<PointSource>& sources);
+    std::tuple<Vector, Vector> getDataRange() const;
 
     template<typename FmmNode>
     void localToLocal(FmmNode& node);
@@ -69,6 +68,7 @@ template<std::size_t d>
 std::vector<double> AbstractFmmTree<d>::evaluateParticlePotentials() const {
 
     std::vector<double> potentials(sources.size()); 
+    #pragma omp parallel for
     for(std::size_t i = 0; i < sources.size(); ++i) {
         potentials[i] = evaluatePotential(sources[i].position);
     }
@@ -80,6 +80,7 @@ template<std::size_t d>
 std::vector<Vector_<d>> AbstractFmmTree<d>::evaluateParticleForcefields() const {
 
     std::vector<Vector> forces(sources.size()); 
+    #pragma omp parallel for 
     for(std::size_t i = 0; i < sources.size(); ++i) {
         forces[i] = evaluateForcefield(sources[i].position);
     }
@@ -88,8 +89,7 @@ std::vector<Vector_<d>> AbstractFmmTree<d>::evaluateParticleForcefields() const 
 }
 
 template<std::size_t d>
-std::tuple<Vector_<d>, Vector_<d>> AbstractFmmTree<d>::getDataRange(
-        const std::vector<PointSource> & sources) {
+std::tuple<Vector_<d>, Vector_<d>> AbstractFmmTree<d>::getDataRange() const {
 
     Vector lower_bounds, upper_bounds; 
     lower_bounds.fill(HUGE_VAL);

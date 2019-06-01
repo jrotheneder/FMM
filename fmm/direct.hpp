@@ -48,6 +48,7 @@ double electrostaticPotential_s(const Source& src, const Vector& evaluation_poin
     /* throw std::runtime_error("Cannot evaluate field at source location."); */
     }
 
+
     if constexpr(d == 2) { return -src.q * log(r); }
     else { return src.q / r; }
 }
@@ -81,14 +82,14 @@ Vector gravitationalForce_s(const Source& src, const Vector& evaluation_point) {
 
 // InteractionResult can be e.g. double, Vector for potentials and forces
 template<typename Vector, typename Source, typename InteractionResult> 
-InteractionResult evaluateInteraction(std::vector<Source>& sources, 
+InteractionResult evaluateInteraction(const std::vector<Source>& sources, 
         const Vector& evaluation_point, std::function <InteractionResult 
         (const Source&, const Vector&)> interactionFunction) {
 
     InteractionResult res{}; // Default init must be '0' element of result type
     res = std::accumulate(sources.begin(), sources.end(), res, 
         [&interactionFunction, &evaluation_point](InteractionResult& accumulant, 
-        Source& src) -> InteractionResult { 
+        const Source& src) -> InteractionResult { 
             return accumulant + interactionFunction(src, evaluation_point); 
         }
     );

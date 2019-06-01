@@ -72,9 +72,6 @@ struct AbstractOrthtree<Vector, d>::BaseNode {
 template<typename Vector, std::size_t d>
 bool AbstractOrthtree<Vector, d>::BaseNode::adjacent(BaseNode* other) const {
 
-    // TODO warning if the tree grows so high that this becomes problematic
-    const double rtol = 1E-10; 
-
     Vector ones(1); 
     Vector self_lower = this->center - this->box_length/2 * ones; 
     Vector self_upper = this->center + this->box_length/2 * ones; 
@@ -85,58 +82,17 @@ bool AbstractOrthtree<Vector, d>::BaseNode::adjacent(BaseNode* other) const {
     // overlap in each dimension separately. In 1D, two lines (x1, x2), (y1, y2)
     // do not intersect if x2 < y1 || x1 > y2 or equiv. if y1-x2 > 0 && x1 - y2
     // > 0. To allow for some numerical error, we instead check whether 
-    // (y1-x2)/|y1| - rtol > 0 etc.
+    // y1 - x2 - 1/2 length(min(box1, box2)) > 0 etc, which is possible to due
+    // to regular layout of boxes in this setting.
 
-    Vector diffs1 = other_lower - self_upper; 
-    Vector diffs2 = self_lower - other_upper; 
+    Vector tolerance(std::min(this->box_length, other->box_length)/2);
+    Vector diffs1 = other_lower - self_upper - tolerance; 
+    Vector diffs2 = self_lower - other_upper - tolerance; 
 
-//  TODO remove
-//  std::cout << "\n\n";
-//  std::cout << "self_lower = " << self_lower << "\n";
-//  std::cout << "self_upper = " << self_upper << "\n";
-//  std::cout << "other_upper = " << other_upper << "\n";
     for(unsigned i = 0; i < d; ++i) {
 
-        double rel_dev1 = diffs1[i] 
-                / std::max(std::abs(other_lower[i]), std::abs(self_upper[i]));
-        double rel_dev2 = diffs2[i] 
-                / std::max(std::abs(self_lower[i]), std::abs(other_upper[i]));
-
-//      TODO remove
-//      std::cout << "diffs1[" << i << "] = " << diffs1[i] << "\n";
-//      std::cout << "diffs2[" << i << "] = " << diffs2[i] << "\n";
-//      std::cout << "rel_dev1 = " << rel_dev1 << "\n";
-//      std::cout << "rel_dev2 = " << rel_dev2 << "\n";
-
-        if(rel_dev1 - rtol > 0 || rel_dev2 - rtol > 0) { return false; }
+        if(diffs1[i] > 0 || diffs2[i] > 0) { return false; }
     }
-
-    // TODO remove
-    /*
-    std::cout << "\n\n";
-    for(unsigned i = 0; i < d; ++i) {
-
-        double s_upper = self_upper[i] + rtol * std::abs(self_upper[i]); 
-        double s_lower = self_lower[i] - rtol * std::abs(self_lower[i]);
-        double o_upper = other_upper[i];  
-        double o_lower = other_lower[i];  
-
-
-
-        std::cout
-            << std::setprecision(std::numeric_limits<double>::digits10) 
-            << std::scientific;
-
-        std::cout << "s_lower = " << s_lower << "\n";
-        std::cout << "s_upper = " << s_upper << "\n";
-        std::cout << "o_lower = " << o_lower << "\n";
-        std::cout << "o_upper = " << o_upper << "\n";
-        std::cout << "s_upper - o_lower = " << s_upper - o_lower << "\n";
-
-
-        if(s_upper < o_lower || s_lower > o_upper) { return false; }
-    }
-    */
 
     return true; 
 }
