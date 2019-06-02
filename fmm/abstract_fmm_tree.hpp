@@ -50,8 +50,8 @@ public:
 
     virtual double evaluatePotential(const Vector& eval_point) const = 0; 
     virtual Vector evaluateForcefield(const Vector& eval_point) const = 0; 
-    std::vector<double> evaluateParticlePotentials() const; 
-    std::vector<Vector> evaluateParticleForcefields() const; 
+    std::vector<double> evaluateParticlePotentialEnergies() const; 
+    std::vector<Vector> evaluateParticleForces() const; 
 
     virtual ~AbstractFmmTree() {}
 
@@ -65,24 +65,26 @@ protected:
 };
 
 template<std::size_t d>
-std::vector<double> AbstractFmmTree<d>::evaluateParticlePotentials() const {
+std::vector<double> AbstractFmmTree<d>::evaluateParticlePotentialEnergies() const {
 
     std::vector<double> potentials(sources.size()); 
     #pragma omp parallel for
     for(std::size_t i = 0; i < sources.size(); ++i) {
-        potentials[i] = evaluatePotential(sources[i].position);
+        potentials[i] = sources[i].sourceStrength() 
+            * evaluatePotential(sources[i].position);
     }
 
     return potentials; 
 }
 
 template<std::size_t d>
-std::vector<Vector_<d>> AbstractFmmTree<d>::evaluateParticleForcefields() const {
+std::vector<Vector_<d>> AbstractFmmTree<d>::evaluateParticleForces() const {
 
     std::vector<Vector> forces(sources.size()); 
     #pragma omp parallel for 
     for(std::size_t i = 0; i < sources.size(); ++i) {
-        forces[i] = evaluateForcefield(sources[i].position);
+        forces[i] = sources[i].sourceStrength() 
+            * evaluateForcefield(sources[i].position);
     }
     
     return forces; 

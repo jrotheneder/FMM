@@ -44,32 +44,6 @@ public:
     Vector evaluateForcefield(const Vector& eval_point) const override; 
 
     void toFile() override;
-    void executeTest() const {
-
-        #pragma omp parallel for
-        for(std::size_t i = 0; i < this->sources.size(); ++i) {
-
-            double fmm_pot = evaluatePotential(this->sources[i].position);
-            double ref_pot = AFMMT::evalScalarInteraction(this->sources, 
-                this->sources[i].position, AFMMT::safePotentialFunction);
-            double rel_dev = std::abs((fmm_pot-ref_pot)/ref_pot);
-
-
-            //std::cout << i << "\t" << rel_dev  << "\n";
-            if(rel_dev > 1E-3) {
-                #pragma omp critical
-                std::cout << "Deviation of " << rel_dev << " detected for sources[" 
-                    << i << "] = " << this->sources[i] << "\n";
-                std::cout << i << "\t" << ref_pot << "\t" << fmm_pot << "\t"
-                    << rel_dev << "\t"  << "\n";
-
-                return; 
-
-            }
-        }
-        
-        
-    }
 
     ~AdaptiveFmmTree() { delete this->root; }
 
@@ -154,8 +128,11 @@ AdaptiveFmmTree<d>::AdaptiveFmmTree(std::vector<PointSource>& sources,
 
         FmmLeaf * root = new FmmLeaf(center, box_length, 0, nullptr,
             this->order, sources);
-        this->leaves[0] = std::vector<FmmLeaf*>{root};
+        this->computeNodeNeighbourhood(root);
+        this->leaves.push_back(std::vector<FmmLeaf*>{root});
+
         this->root = root; 
+        this->height = 0;
 
         return;
     }
@@ -246,42 +223,28 @@ AdaptiveFmmTree<d>::AdaptiveFmmTree(std::vector<PointSource>& sources,
         FmmNode& node = *final_level[i]; 
         initializeLocalExpansion(node); 
     }
-
-    //executeTest(); 
 }
 
 template<std::size_t d>
 double AdaptiveFmmTree<d>::evaluatePotential(const Vector& eval_point) const {
 
     FmmLeaf& containing_leaf = getContainingLeaf(eval_point);  
-
+    
     // Contributions from local expansion of containing leaf
     double pot = containing_leaf.local_expansion.evaluatePotential(eval_point); 
 
     // Contributions from multipole expansions of nodes & leaves contained in
     // containing leaf's W list
 
-//  std::cout << "containing_leaf.center = " << containing_leaf.center << "\n";
-//  std::cout << "evaluation_point: " << eval_point  << "\n";
     for(FmmNode* node : containing_leaf.W_list) {
-//      std::cout << "node->me.center: " << node->multipole_expansion.center  << "\n";
-//      std::cout << "node->center: " << node->center  << "\n";
         pot += node->multipole_expansion.evaluatePotential(eval_point);  
-
-//      std::cout << "ME.evalPot() returned " << 
-//          node->multipole_expansion.evaluatePotential(eval_point)
-//          << " vs reference " << 
-//          AFMMT::evalScalarInteraction(static_cast<FmmLeaf*>(node)->sources, 
-//          eval_point, AFMMT::potentialFunction) << "\n"; 
-
-
-//      std::cout << 2 << "\t" << pot << "\n";
     }
 
     // Contributions from sources in near neighbour leaves (eval. directly).
     // The list of NNs includes the containing_leaf; this one is handled
     // separately with a potential which checks whether eval_point coincides
     // with a source location (in which case an exception is thrown)
+    
     for(auto leaf : containing_leaf.near_neighbours) {
         if(leaf != &containing_leaf) {
             pot += AFMMT::evalScalarInteraction(static_cast<FmmLeaf*>(leaf)->sources, 

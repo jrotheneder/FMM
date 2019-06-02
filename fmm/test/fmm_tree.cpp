@@ -2,7 +2,9 @@
 #include <array> 
 #include <complex> 
 #include <iostream> 
+#include <fstream> 
 #include <string> 
+#include <sstream> 
 #include <cstdlib> 
 #include <cmath> 
 #include <chrono> 
@@ -17,14 +19,16 @@ using namespace fmm;
 
 int main(int argc, char *argv[]) {
     
-    const size_t N = 100000;
-    const size_t items_per_leaf = 10; 
+    #define adaptive true
+    const bool uniform = false; 
+    const bool from_file = true; 
+
+    size_t N = 10000;
+    const size_t items_per_leaf = 50; 
     const size_t d = 2;
     const double eps = 1E-4; 
     const size_t order = ceil(log(1/eps) / log(2)); 
     const double extent = 1E-6;
-    const bool uniform = false; 
-    #define adaptive true
 
     const size_t seed = 42; 
     srand(seed); 
@@ -38,30 +42,36 @@ int main(int argc, char *argv[]) {
     constexpr auto evalVectorInteraction = evaluateInteraction<Vec, Src, Vec>;
 
     std::vector<Src> sources;
-    Vec center{}; // Origin 
 
-    Vec shift(8);
-
-    auto centers = AbstractOrthtree<Vec, d>::getChildCenterDirections(); 
-    for(std::size_t i = 0; i < (1 << d) ; ++i) {
-        centers[i] = centers[i] * (((rand() % 2) ? 1 : 1.5) * extent); 
+    if(from_file) {
+        sources = getSourcesFromFile<d>("sources.dat");  
+        N = sources.size(); 
     }
-
-    for(size_t i = 0; i < N; i++) {
-        Vec v;      
-        for(size_t j = 0; j < d; ++j) {
-            v[j] =  extent * ((double) rand() / (RAND_MAX)) - extent/2;
+    else {
+        Vec center{}; // Origin 
+        Vec shift(8);
+        auto centers = AbstractOrthtree<Vec, d>::getChildCenterDirections(); 
+        for(std::size_t i = 0; i < (1 << d) ; ++i) {
+            centers[i] = centers[i] * (((rand() % 2) ? 1 : 1.5) * extent); 
         }
 
-        if(!uniform) {
-            v += centers[rand() % AbstractOrthtree<Vec, d>::n_children];
+        for(size_t i = 0; i < N; i++) {
+            Vec v;      
+            for(size_t j = 0; j < d; ++j) {
+                v[j] =  extent * ((double) rand() / (RAND_MAX)) - extent/2;
+            }
+
+            if(!uniform) {
+                v += centers[rand() % AbstractOrthtree<Vec, d>::n_children];
+            }
+
+            double q = (double) rand() / (RAND_MAX) * (i % 2 ? 1 : -1);
+            Src src {v, q};
+
+            sources.push_back(src); 
         }
-
-        double q = (double) rand() / (RAND_MAX) * (i % 2 ? 1 : -1);
-        Src src {v, q};
-
-        sources.push_back(src); 
     }
+
     
     auto t1 = std::chrono::high_resolution_clock::now();
 
@@ -94,7 +104,7 @@ int main(int argc, char *argv[]) {
 
     t1 = std::chrono::high_resolution_clock::now();
     CALLGRIND_TOGGLE_COLLECT;
-    auto potentials = fmm_tree.evaluateParticlePotentials(); 
+    auto potentials = fmm_tree.evaluateParticlePotentialEnergies(); 
     CALLGRIND_TOGGLE_COLLECT;
     t2 = std::chrono::high_resolution_clock::now();
     std::cout << "fmm potential computation: " 
@@ -105,8 +115,8 @@ int main(int argc, char *argv[]) {
 
     #pragma omp parallel for
     for(std::size_t i = 0; i < sources.size(); ++i) {
-        ref_potentials[i] =  evalScalarInteraction(sources, 
-            sources[i].position, EPot);
+        ref_potentials[i] =  sources[i].sourceStrength() 
+            * evalScalarInteraction(sources, sources[i].position, EPot);
     }
     t2 = std::chrono::high_resolution_clock::now();
 
@@ -121,20 +131,22 @@ int main(int argc, char *argv[]) {
     std::cout << "Mean relative potential deviation: " << 
         std::accumulate(diffs.begin(), diffs.end(), 0.0)/diffs.size() << std::endl;
 
-/*
+  
     t1 = std::chrono::high_resolution_clock::now();
-    auto forces = fmm_tree.evaluateParticleForcefields(); 
+    auto forces = fmm_tree.evaluateParticleForces(); 
     t2 = std::chrono::high_resolution_clock::now();
     std::vector<Vec> ref_forces(sources.size()); 
     std::cout << "fmm force computation: " 
         << chrono_duration(t2-t1) << "s" << std::endl; 
 
+
     t1 = std::chrono::high_resolution_clock::now();
     #pragma omp parallel for
     for(std::size_t i = 0; i < sources.size(); ++i) {
-        ref_forces[i] =  evalVectorInteraction(sources, 
+        ref_forces[i] =  sources[i].sourceStrength() * evalVectorInteraction(sources, 
             sources[i].position, EFrc);
     }
+
     t2 = std::chrono::high_resolution_clock::now();
     std::cout << "direct force computation: " 
         << chrono_duration(t2-t1) << "s" << std::endl; 
@@ -147,7 +159,7 @@ int main(int argc, char *argv[]) {
 
     std::cout << "Mean relative force deviation: " << 
         std::accumulate(diffs.begin(), diffs.end(), 0.0)/diffs.size() << std::endl;
-*/
+  
 
     return 0;
 

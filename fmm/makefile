@@ -1,9 +1,9 @@
-CXX = icc
+CXX = g++
 EXT = cpp
 
 DEBUGFLAGS = -g -ggdb -O3 #-fno-inline
 #OFLAGS = -O3 -fopenmp
-OFLAGS = -O3 -ffast-math -qopenmp
+OFLAGS = -O3 -ffast-math -fopenmp
 LIBS = -lstdc++fs -lgsl -lcblas 
 CXXFLAGS = -Wall -Wno-unknown-pragmas -fno-builtin -std=c++17 -pedantic 
 

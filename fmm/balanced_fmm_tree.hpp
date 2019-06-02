@@ -119,6 +119,7 @@ BalancedFmmTree<d>::BalancedFmmTree(std::vector<PointSource>& sources,
         this->nodes = nullptr; 
         this->leaves = new FmmLeaf[n_leaves /* == 1 */];   
         this->leaves[0] = FmmLeaf(center, box_length, 0, nullptr, this->order);
+        this->computeNodeNeighbourhood(this->leaves[0]);
 
         std::vector<PointSource>* leaf_sources 
             = new std::vector<PointSource>(this->sources);
