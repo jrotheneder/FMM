@@ -1,6 +1,9 @@
 #include "series_expansion.hpp"
 #include "multipole_expansion.hpp"
 
+#include <gsl/gsl_complex.h> 
+#include <gsl/gsl_poly.h> 
+
 #ifndef LOCAL_EXPANSION_H
 #define LOCAL_EXPANSION_H
 
@@ -46,7 +49,7 @@ template<typename Vector, typename Source>
 LocalExpansion<Vector, Source, 2>::LocalExpansion(const Vector& center, 
         const ME& incoming): Super(center, incoming.order) {
 
-    assert(incoming.coefficients.size() > 0); 
+    assert(incoming.order > 0); 
 
     this->coefficients = multipoleToLocal(incoming); 
 }
@@ -62,11 +65,13 @@ LocalExpansion<Vector, Source, 2>::LocalExpansion(const Vector& center,
 
         Complex z{src.position[0], src.position[1]};
         Complex z_rel = z - this->center; // Express z in box-local coordinates
+        Complex z_rel_inv_pow = 1./z_rel; 
 
         this->coefficients[0] += src.sourceStrength() * std::log(z_rel); 
         for(std::size_t j = 1; j <= order; ++j) {
-            this->coefficients[j] -=  // TODO: consider better pow
-                src.sourceStrength() / std::pow(z_rel, j) / (double)j; 
+            this->coefficients[j] -=  
+                src.sourceStrength() * z_rel_inv_pow / (double)j; 
+            z_rel_inv_pow /= z_rel; 
         }
     }
 }
@@ -84,7 +89,7 @@ template<typename Vector, typename Source>
 LocalExpansion<Vector, Source, 2>::LocalExpansion(const Vector& center, 
         const LocalExpansion& incoming): Super(center, incoming.order)  {
     
-    assert(incoming.coefficients.size() > 0); 
+    assert(incoming.order > 0); 
 
     Complex shift_vec = incoming.center - this->center; 
     this->coefficients = incoming.shift(shift_vec); 
@@ -95,37 +100,37 @@ template<typename Vector, typename Source>
 std::vector<Complex> LocalExpansion<Vector, Source, 2>::multipoleToLocal(
         const ME& incoming) const {
 
-    Complex a_0 = incoming.coefficients[0];  // 0-th coeff of multipole exp.
-    Complex z_0 = incoming.center - this->center; // ME center rel. to this->center
+    Complex z0 = incoming.center - this->center; // ME center rel. to this->center
+
+    const typename Super::BinomialTable& binomial_table = Super::binomial_table; 
+    const typename Super::template PowTable<Complex> 
+        z0_inv_pow_table(1./z0, this->order);   
     
-    // TODO precompute pows
-    // Compute b_0:
-    std::vector<Complex> coefficients(this->order + 1) ; 
+    std::vector<Complex> coefficients(this->order + 1); 
 
-    coefficients[0] += a_0 * std::log(-z_0); 
-    for(int k = 1; k <= this->order; ++k) {
+    coefficients[0] = incoming(0) * std::log(-z0); 
+    for(unsigned k = 1; k <= this->order; ++k) {
         double sign = k % 2 == 0 ? 1 : -1;  
-        coefficients[0] += 
-            sign * incoming.coefficients[k] / pow(z_0, k); // [(4.18), 1] 
+        coefficients[0] += sign * incoming(k) * z0_inv_pow_table(k); // [(4.18), 1] 
     }
+
     // Compute b_l for 1 <= l <= order
-    for(int l = 1; l <= this->order; ++l) {
+    for(unsigned l = 1; l <= this->order; ++l) {
 
-        Complex b_l = -a_0/(double)l; 
+        Complex b_l = -incoming(0)/(double)l; 
 
-        for(int k = 1; k < this->order; ++k) { // TODO reverse sum?
+        for(unsigned k = 1; k < this->order; ++k) { 
             double sign = k % 2 == 0 ? 1 : -1;  
-            b_l += sign * incoming.coefficients[k]/pow(z_0,k) 
-                * binomial(l+k-1, k-1); // [(4.19), 1]
+            b_l += sign * incoming(k) * z0_inv_pow_table(k)   
+                * binomial_table(l+k-1, k-1); // [(4.19), 1]
         }
 
-        b_l /= pow(z_0, l); // [(4.19), 1]
-        coefficients[l] += b_l; 
+        b_l *= z0_inv_pow_table(l); // [(4.19), 1]
+        coefficients[l] = b_l; 
     }
 
     return coefficients;
 }
-
 
 // Shift is the vector (complex number) from the new center to the old
 // center.
@@ -135,8 +140,8 @@ std::vector<Complex> LocalExpansion<Vector, Source, 2>::shift(
 
     std::vector<Complex> shifted_coefficients{this->coefficients}; 
 
-    for(int j = 0; j < this->order; ++j) {
-        for(int k = this->order-j-1; k < this->order; ++k) {
+    for(unsigned j = 0; j < this->order; ++j) {
+        for(unsigned k = this->order-j-1; k < this->order; ++k) {
             shifted_coefficients[k] -= shift * shifted_coefficients[k+1];    
         }
     }
@@ -149,20 +154,18 @@ double LocalExpansion<Vector, Source, 2>::evaluatePotential(
         const Vector& eval_point) const {
 
     Complex z{eval_point[0], eval_point[1]}; // get complex repr.
-    Complex z_rel = z - this->center; 
+    const Complex z_rel = z - this->center; 
 
     Complex result{};
     Complex z_rel_pow = 1;
 
     for(std::size_t k = 0; k < this->coefficients.size(); ++k) {
-        result += this->coefficients[k] * z_rel_pow;
+        result += (*this)(k) * z_rel_pow;
         z_rel_pow *= z_rel; 
     }
 
-    // Result contains the eval. of the local expansion of the multipole
-    // expansion of the potential φ = q log(z-z0) (i.e. the 2d gravitational 
-    // potential) summed over all source locations z0. 
-    // Return -1 times this (i.e. -result.real()) for the electrostatic potential
+    // Return -result.real() for the electrostatic potential, 
+    // +result.real() for the gravitational potential. 
     return -result.real(); 
 } 
 
@@ -178,14 +181,10 @@ Vector LocalExpansion<Vector, Source, 2>::evaluateForcefield(
     Complex z_rel_pow = 1;
 
     for(std::size_t k = 1; k < this->coefficients.size(); ++k) {
-        result += (double)k * this->coefficients[k] * z_rel_pow;
+        result += (double)k * (*this)(k) * z_rel_pow;
         z_rel_pow *= z_rel; 
     }
 
-    // Result contains the eval. of the local expansion of the multipole
-    // expansion of the potential φ = q log(z-z0) (i.e. the 2d gravitational 
-    // potential) summed over all source locations z0. 
-    // Return -1 times this (i.e. -result.real()) for the electrostatic potential
     return {{result.real(), -result.imag()}}; 
 }
 
@@ -247,7 +246,6 @@ LocalExpansion<Vector, Source, 3>::LocalExpansion(const Vector& center,
     }
 }
 
-// TODO consider deleting this constructor (need to change 2d imp. as well)
 template<typename Vector, typename Source>
 LocalExpansion<Vector, Source, 3>::LocalExpansion(const Vector& center, 
         std::vector<const ME*> incoming): Super(center, incoming.at(0)->order) {
@@ -266,17 +264,12 @@ LocalExpansion<Vector, Source, 3>::LocalExpansion(const Vector& center,
     const auto [r, theta, phi]  
         = (incoming.center - this->center).toSpherical().data(); 
 
-    // Precompute inverse powers of r:
-    double* r_pow_table = new double[2 * this->order + 1];  
-    r_pow_table[0] = 1/r; 
-    for(int i = 1; i <= 2 * this->order; ++i) { 
-        r_pow_table[i] = r_pow_table[i-1] / r; 
-    }
-
-    // Precomputed values of Y_l^m(theta, phi) & A_l^m 
-    const typename Super::YlmTable sphericalHarmonicY(2*this->order, theta, phi); 
+    // Precomputed values of Y_l^m(theta, phi), A_l^m, sign patterns & powers of  r
+    const typename Super::YlmTable sphericalHarmonicY(2 * this->order, theta, phi); 
     typename Super::AlmTable& A = Super::alm_table;
     typename Super::SignTable& sign2 = Super::sign_fun2_table;
+    typename SeriesExpansion<Vector, Source, 2>:: template PowTable<double> 
+        r_inv_pow_table(1/r, 2*this->order+1);
 
     for(int j = 0; j <= this->order; ++j) {
         for(int k = -j; k <= j; ++k) {
@@ -292,15 +285,13 @@ LocalExpansion<Vector, Source, 3>::LocalExpansion(const Vector& center,
                 }
 
                 double sign = n % 2 ? -1 : 1; 
-                L_jk += sign * r_pow_table[j+n] * accumulant ;
+                L_jk += sign * r_inv_pow_table(j+n+1) * accumulant ;
             }
 
             L_jk *= A(j,k);
             self(j,k) = L_jk;
         }
     }
-
-    delete[] r_pow_table;
 }
 
 template<typename Vector, typename Source>
@@ -330,17 +321,12 @@ std::vector<Complex> LocalExpansion<Vector, Source, 3>::shift(
 
     const auto [r, theta, phi] = shift.toSpherical().data(); 
 
-    // Precompute powers of r:
-    double* r_pow_table = new double[this->order + 1];  
-    r_pow_table[0] = 1; 
-    for(int i = 1; i <= this->order; ++i) { 
-        r_pow_table[i] = r_pow_table[i-1] * r; 
-    }
-      
-    // Precomputed values of Y_l^m(theta, phi) & A_l^m 
+    // Precomputed values of Y_l^m(theta, phi), A_l^m, sign patterns & powers of r
     const typename Super::YlmTable sphericalHarmonicY(2 * this->order, theta, phi); 
     typename Super::AlmTable& A = Super::alm_table;
     typename Super::SignTable& sign3 = Super::sign_fun3_table;
+    typename SeriesExpansion<Vector, Source, 2>:: template PowTable<double> 
+        r_pow_table(r, this->order);
 
     unsigned coeff_index = 0; // index of next coefficient to be computed
     for(int j = 0; j <= this->order; ++j) {  
@@ -358,15 +344,13 @@ std::vector<Complex> LocalExpansion<Vector, Source, 3>::shift(
                         * (outgoing(n, m) * sphericalHarmonicY(n - j, m - k));
                 }
 
-                L_jk += sign * r_pow_table[n - j] * accumulant;
+                L_jk += sign * r_pow_table(n - j) * accumulant;
 
             }
 
             shifted_coefficients[coeff_index++] = A(j, k) * L_jk;
         }
     }
-
-    delete[] r_pow_table; 
 
     return shifted_coefficients;
 }
@@ -415,8 +399,8 @@ Vector LocalExpansion<Vector, Source, 3>::evaluateForcefield(
             const Complex L_nm = (*this)(n,m) ;
 
             force_r += r_pow * (double) n * (L_nm * ylm_table.Y(n,m)).real(); 
-            force_theta += r_pow * (L_nm * ylm_table.dtheta(n, m)).real(); 
-            force_phi += r_pow * (L_nm * ylm_table.dphi(n, m)).real() 
+            force_theta += r_pow * (L_nm * ylm_table.dYdtheta(n, m)).real(); 
+            force_phi += r_pow * (L_nm * ylm_table.dYdphi(n, m)).real() 
                 / std::sin(theta); 
         }
 

@@ -11,7 +11,7 @@
 
 namespace fmm {
 
-template<typename Vector, typename Source, std::size_t d>
+template<typename Vector, typename Source, unsigned d>
 struct MultipoleExpansion {
 
     static_assert(d==2 || d==3, 
@@ -29,7 +29,7 @@ struct MultipoleExpansion<Vector, Source, 2>: SeriesExpansion<Vector, Source, 2>
     using ME = MultipoleExpansion; 
 
     MultipoleExpansion(): Super() {}; 
-    MultipoleExpansion(const Vector& center, std::size_t order, 
+    MultipoleExpansion(const Vector& center, unsigned order, 
             std::vector<Source>& sources);
     MultipoleExpansion(const Vector& center, std::vector<const ME*>& expansions);
 
@@ -43,7 +43,7 @@ struct MultipoleExpansion<Vector, Source, 2>: SeriesExpansion<Vector, Source, 2>
 
 template<typename Vector, typename Source> 
 MultipoleExpansion<Vector, Source, 2>::MultipoleExpansion(const Vector& center, 
-        std::size_t order, std::vector<Source>& sources): Super(center, order) {
+        unsigned order, std::vector<Source>& sources): Super(center, order) {
     
     // Compute series expansion coefficients a_0 through a_order: 
     for(std::size_t i = 0; i < sources.size(); ++i) {
@@ -52,11 +52,12 @@ MultipoleExpansion<Vector, Source, 2>::MultipoleExpansion(const Vector& center,
 
         Complex z{src.position[0], src.position[1]};
         Complex z_rel = z - this->center; // Express z in box-local coordinates
+        Complex z_rel_pow = z_rel; 
 
-        this->coefficients[0] += src.sourceStrength(); 
-        for(std::size_t j = 1; j <= order; ++j) {
-            this->coefficients[j] -=  // TODO: consider better pow
-                src.sourceStrength() * std::pow(z_rel, j) / (double)j; 
+        (*this)(0) += src.sourceStrength(); 
+        for(unsigned j = 1; j <= order; ++j) {
+            (*this)(j) -=  src.sourceStrength() * z_rel_pow / (double)j; 
+            z_rel_pow *= z_rel; 
         }
     }
 }
@@ -69,8 +70,6 @@ MultipoleExpansion<Vector, Source, 2>::MultipoleExpansion(
     
     for(const ME* me : expansions) {
 
-        assert(me->coefficients.size() == this->coefficients.size()); // TODO remove
-    
         Complex shift_vec = me->center - this->center; 
         std::vector<Complex> shifted_coefficients 
             = me->shift(shift_vec);
@@ -87,16 +86,18 @@ template<typename Vector, typename Source>
 std::vector<Complex>  MultipoleExpansion<Vector, Source, 2>::shift(
         const Complex& shift) const {
 
-    std::vector<Complex> shifted_coefficients(this->coefficients.size()); 
+    std::vector<Complex> shifted_coefficients(this->order + 1); 
 
-    // TODO: precompute pows, better binomial if slow
-    double Q = this->coefficients[0].real(); 
+    const typename Super::BinomialTable& binomial_table = Super::binomial_table; 
+    typename Super:: template PowTable<Complex> shift_pow_table(shift, this->order);
+
+    double Q = (*this)(0).real(); 
     shifted_coefficients[0] = Q; 
-    for(std::size_t l = 1; l <= shifted_coefficients.size() - 1; ++l) {
-        shifted_coefficients[l] = -Q * pow(shift, l) / (double)l; 
-        for(std::size_t k = 1; k <= l; ++k) {
-            shifted_coefficients[l] += this->coefficients[k] * pow(shift, l-k) 
-                * binomial(l-1, k-1);  // [(4.15), 1]  
+    for(unsigned l = 1; l <= this->order; ++l) {
+        shifted_coefficients[l] = -Q * shift_pow_table(l)  / (double)l; 
+        for(unsigned k = 1; k <= l; ++k) {
+            shifted_coefficients[l] += (*this)(k) * shift_pow_table(l-k) 
+                * binomial_table(l-1, k-1);  // [(4.15), 1]  
         }
     }
 
@@ -110,21 +111,16 @@ double MultipoleExpansion<Vector, Source, 2>::evaluatePotential(
 
     Complex z{eval_point[0], eval_point[1]}; // get complex repr.
     Complex z_rel = z - this->center; 
-    double Q = this->coefficients[0].real(); 
 
-    //std::cout << "z_rel = " << z_rel << "\n";
-
+    double Q = (*this)(0).real(); 
     Complex result = Q * log(z_rel); 
     
-    // TODO Horner scheme this
+    Complex z_rel_pow = z_rel; 
     for(unsigned j = 1; j < this->coefficients.size(); ++j) { 
-        result += this->coefficients[j] / pow(z_rel, j);
+        result += (*this)(j) / z_rel_pow; 
+        z_rel_pow /= z_rel; 
     }
 
-    // Result contains the eval. of the (inverse) complex power series for 
-    // φ = q log(z-z0) (i.e. the complex 2d gravitational potential) summed 
-    // over all source locations z0. 
-    // Return -1 times this for the electrostatic potential
     return -result.real(); 
 } 
 
@@ -134,20 +130,18 @@ Vector MultipoleExpansion<Vector, Source, 2>::evaluateForcefield(
 
     Complex z{eval_point[0], eval_point[1]}; // get complex repr.
     Complex z_rel = z - this->center; 
-    double Q = this->coefficients[0].real(); 
+    double Q = (*this)(0).real(); 
 
     Complex result = Q / z_rel;
 
-    // TODO Horner scheme this
+    Complex z_rel_inv_pow = 1./(z_rel * z_rel); 
     for(unsigned j = 1; j < this->coefficients.size(); ++j) { 
-        result -= (double)j * this->coefficients[j] / pow(z_rel, j+1);
+        result -= (double)j * (*this)(j) / z_rel_inv_pow;
+        z_rel_inv_pow /= z_rel; 
     }
 
-    // Result contains the eval. of *the derivative* φ' of the (inverse) complex 
-    // power series for φ = q log(z-z0) (i.e. the complex 2d gravitational potential) 
-    // summed over all source locations z0. The force field is then given by 
-    // \vec F - ∇φ = (-∂x φ, -∂y φ) = (-Re φ, Im φ). For the electric field,
-    // return -1 times that, i.e. (Re φ, -Im φ).
+    // The gravitational field is given by {{-result.real(), result.imag()}}.
+    // For the electric field, return {{result.real(), -result.imag()}}.
     return {{result.real(), -result.imag()}}; 
 }
 
@@ -196,7 +190,6 @@ MultipoleExpansion<Vector, Source, 3>::MultipoleExpansion(
                 self(n,m) += sources[i].sourceStrength() * r_pow
                         * sphericalHarmonicY(n, -m);
             }
-
             r_pow *= r; 
         }
     }
@@ -209,8 +202,6 @@ MultipoleExpansion<Vector, Source, 3>::MultipoleExpansion(const Vector& center,
         
     for(const ME* me : expansions) {
 
-        assert(me->coefficients.size() == this->coefficients.size()); // TODO remove
-    
         Vector shift_vec = me->center - this->center; 
         std::vector<Complex> shifted_coefficients = me->shift(shift_vec);
 
@@ -238,17 +229,12 @@ std::vector<Complex> MultipoleExpansion<Vector, Source, 3>::shift(
 
     const auto [r, theta, phi] = shift.toSpherical().data(); 
 
-    // Precompute powers of r:
-    double* r_pow_table = new double[this->order + 1];  
-    r_pow_table[0] = 1; 
-    for(int i = 1; i <= this->order; ++i) { 
-        r_pow_table[i] = r_pow_table[i-1] * r; 
-    }
-
-    // Precomputed values of Y_l^m(theta, phi) & A_l^m 
+    // Precomputed values of Y_l^m(theta, phi), A_l^m, sign patterns & powers of r
     const typename Super::YlmTable sphericalHarmonicY(this->order, theta, phi); 
     typename Super::AlmTable& A = Super::alm_table;
     typename Super::SignTable& sign1 = Super::sign_fun1_table;
+    typename SeriesExpansion<Vector, Source, 2>:: template PowTable<double> 
+        r_pow_table(r, this->order);
       
     unsigned coeff_index = 0; // index of next coefficient to be computed
     for(int j = 0; j <= this->order; ++j) {  
@@ -265,15 +251,12 @@ std::vector<Complex> MultipoleExpansion<Vector, Source, 3>::shift(
                         * (outgoing(j-n, k-m) * sphericalHarmonicY(n, -m));
                 }
 
-                M_jk += accumulant * r_pow_table[n];
+                M_jk += accumulant * r_pow_table(n);
             }
-
 
             shifted_coefficients[coeff_index++] = M_jk / A(j,k);
         }
     }
-
-    delete[] r_pow_table; 
 
     return shifted_coefficients;
 }
@@ -282,17 +265,19 @@ template<typename Vector, typename Source>
 double MultipoleExpansion<Vector, Source, 3>::evaluatePotential(
         const Vector& eval_point) const { 
 
+    const ME& self = *this; 
+
     const auto [r, theta, phi] = (eval_point - this->center).toSpherical().data(); 
     Complex pot = 0; 
 
-    // TODO smarter pow // TODO switch to more readable ME(n,m) if no perf. penality
-    unsigned coeff_index = 0; // index of next coefficient to be computed
-    for(int n = 0; n <= this->order; ++n) { 
+    const typename Super::YlmTable sphericalHarmonicY(this->order, theta, phi); 
 
+    double r_pow = 1/r; 
+    for(int n = 0; n <= this->order; ++n) { 
         for(int m = -n; m <= n; ++m) {
-            pot += this->coefficients[coeff_index++] / pow(r, n+1) 
-                * YLM(n, m, theta, phi); 
+            pot += self(n,m) * r_pow * sphericalHarmonicY(n, m); 
         }
+        r_pow /= r; 
     }
 
     return pot.real(); 
@@ -322,8 +307,8 @@ Vector MultipoleExpansion<Vector, Source, 3>::evaluateForcefield(
             const Complex& M_nm = (*this)(n,m) ;
             
             force_r -= r_pow * (double) (n + 1) * (M_nm * ylm_table.Y(n, m)).real(); 
-            force_theta += r_pow * (M_nm * ylm_table.dtheta(n, m)).real(); 
-            force_phi += r_pow * (M_nm * ylm_table.dphi(n, m)).real() 
+            force_theta += r_pow * (M_nm * ylm_table.dYdtheta(n, m)).real(); 
+            force_phi += r_pow * (M_nm * ylm_table.dYdphi(n, m)).real() 
                 / std::sin(theta); 
         }
 
@@ -332,8 +317,6 @@ Vector MultipoleExpansion<Vector, Source, 3>::evaluateForcefield(
 
     return -Vector{{force_r, force_theta, force_phi}}.toCartesianBasis(theta, phi); 
 }
-
-
 
 } // namespace fmm
 

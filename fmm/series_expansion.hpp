@@ -4,6 +4,7 @@
 #include <stdexcept> 
 
 #include <gsl/gsl_sf_legendre.h> 
+#include <gsl/gsl_sf_gamma.h>  
 
 #include "fmm_utility.hpp"
 
@@ -19,15 +20,21 @@ struct SeriesExpansion {};
 template<typename Vector, typename Source>
 struct SeriesExpansion<Vector, Source, 2> {
 
-    int order; 
+    struct BinomialTable;  // table of binomial coefficients
+
+    template<typename T>
+    struct PowTable;       // table of powers of a given quantity of type T
+
+    unsigned order; 
     Complex center; // Center of the expansion
-    std::vector<Complex> coefficients; // ME coefficients
+    std::vector<Complex> coefficients; 
+    static BinomialTable binomial_table; 
 
     SeriesExpansion(): order(), center(), coefficients() {}
-    SeriesExpansion(const Vector& center, int order);
+    SeriesExpansion(const Vector& center, unsigned order);
 
     SeriesExpansion& operator+=(const SeriesExpansion& rhs);
-    Complex& operator()(unsigned n); // Access coefficients M_n^m
+    Complex& operator()(unsigned n); // Access coefficient a_n
     const Complex& operator()(unsigned n) const;
 
     virtual double evaluatePotential(const Vector& eval_point) const = 0;
@@ -39,11 +46,73 @@ struct SeriesExpansion<Vector, Source, 2> {
     virtual ~SeriesExpansion() {}
 };
 
+template<typename Vector, typename Source>
+template<typename T>
+struct SeriesExpansion<Vector, Source, 2>::PowTable {
+
+    const T& x;            // base
+    const unsigned nmax;   // we store [1, x, ... x^nmax] 
+    std::vector<T> table; 
+
+    PowTable(const T& x, unsigned nmax): x(x), nmax(nmax), table(nmax+1)  {
+
+        T x_pow = 1; 
+        for(unsigned n = 0; n <= nmax; ++n) {
+            table[n] = x_pow; 
+            x_pow *= x; 
+        }
+    }
+
+    const T& operator()(unsigned n) const { return table[n]; }
+};
+
+template<typename Vector, typename Source>
+typename SeriesExpansion<Vector, Source, 2>::BinomialTable
+    SeriesExpansion<Vector, Source, 2>::binomial_table;
+
+template<typename Vector, typename Source>
+struct SeriesExpansion<Vector, Source, 2>::BinomialTable {
+
+    unsigned max_order = 0;
+    std::vector<double> table; 
+
+    BinomialTable(unsigned order = 0) { 
+        refresh(order); 
+        max_order = order; 
+    }
+
+    void refresh(unsigned order) {
+
+        if(order <= max_order) { return; }
+
+        max_order = order;
+        table.resize(((2*max_order+1)*(2*max_order+2))/2);
+
+        for(unsigned n = 0; n <= max_order; ++n) {
+            for(unsigned k = 0; k <= n; ++k) {
+                table[getTableIndex(n,k)] = gsl_sf_choose(n,k);
+            }
+        }
+    }
+
+    unsigned getTableIndex(unsigned n, unsigned k) const {
+        return (n*(n+1))/2 + k; 
+    }
+
+    const double& operator()(int n, int k) const {
+        return table[getTableIndex(n,k)];
+    }
+
+};
+
 
 template<typename Vector, typename Source>
 SeriesExpansion<Vector, Source, 2>::SeriesExpansion(const Vector& center, 
-        int order): order(order), center({center[0], center[1]}), 
-        coefficients(order + 1) {}
+        unsigned order): order(order), center({center[0], center[1]}), 
+        coefficients(order + 1) {
+
+    if(order > binomial_table.max_order) { binomial_table.refresh(order); }
+}
 
 template<typename Vector, typename Source>
 SeriesExpansion<Vector, Source, 2>& SeriesExpansion<Vector, Source, 2>::
@@ -67,7 +136,6 @@ SeriesExpansion<Vector, Source, 2>& SeriesExpansion<Vector, Source, 2>::
 template<typename Vector, typename Source> 
 Complex& SeriesExpansion<Vector, Source, 2>::operator()(unsigned n) {
 
-    //return coefficients.at(n*(n+1) + m); 
     return coefficients[n]; 
 }
 
@@ -75,7 +143,6 @@ template<typename Vector, typename Source>
 const Complex& SeriesExpansion<Vector, Source, 2>::operator()(unsigned n) 
         const {
 
-    //return coefficients.at(n*(n+1) + m); 
     return coefficients[n]; 
 }
 
@@ -103,19 +170,19 @@ struct SeriesExpansion<Vector, Source, 3> {
     struct YlmTable;  // spherical harmonics
     struct YlmDerivTable;  // derivatives of spherical harmonics
     struct AlmTable;  // A_l^m := (-1)^l/sqrt((l-m)!(l+m)!)
-    struct SignTable; // for sign patterns like I^(|m|-|k-m|-|k|) [aka sign_fun2(k, m)]
+    struct SignTable; // sign patterns like I^(|m|-|k-m|-|k|) arising in M2M, M2L, L2L
 
     static AlmTable alm_table; 
     static SignTable sign_fun1_table; 
     static SignTable sign_fun2_table; 
     static SignTable sign_fun3_table; 
 
-    int order; 
+    unsigned order; 
     Vector center; // Center of the expansion
     std::vector<Complex> coefficients; // ME coefficients
 
     SeriesExpansion(): order(), center(), coefficients() {}
-    SeriesExpansion(const Vector& center, int order);
+    SeriesExpansion(const Vector& center, unsigned order);
 
     SeriesExpansion& operator+=(const SeriesExpansion& rhs);
     Complex& operator()(unsigned n, int m); // Access coefficients M_n^m
@@ -270,43 +337,46 @@ struct SeriesExpansion<Vector, Source, 3>::YlmDerivTable {
         return ylm_table[getTableIndex(l,m)];    
     }
 
-    const Complex& dtheta(unsigned l, int m) const {
+    const Complex& dYdtheta(unsigned l, int m) const {
         return ylm_dtheta_table[getTableIndex(l,m)];    
     }
 
-    const Complex dphi(unsigned l, int m) const {
+    const Complex dYdphi(unsigned l, int m) const {
 
         using namespace std::complex_literals;
-        return 1i * (double)m * ylm_table.at(getTableIndex(l,m));    
+        return 1i * (double)m * ylm_table[getTableIndex(l,m)];    
     }
 };
 
 template<typename Vector, typename Source>
 struct SeriesExpansion<Vector, Source, 3>::AlmTable {
 
-    int max_order;
+    unsigned max_order = 0;
     std::vector<double> table; 
 
-    AlmTable(int order = 0): max_order(order) {
+    AlmTable(unsigned order = 0) { 
         refresh(order); 
+        max_order = order; 
     }
 
-    void refresh(int order) {
+    void refresh(unsigned order) {
 
-        max_order = 2 * order;
-        table.resize((max_order+1)*(max_order+1));
+        if(order <= max_order) { return; }
 
-        unsigned coeff_index = 0;
-        for(int l = 0; l <= max_order; ++l) {
+        max_order = order;
+        table.resize((2*max_order+1)*(2*max_order+1));
+
+        for(int l = 0; l <= 2*max_order; ++l) {
             for(int m = -l; m <= l; ++m) {
-                table[coeff_index++] = A_coeff(l, m);
+                table[getTableIndex(l,m)] = A_coeff(l, m);
             }
         }
     }
 
-    const double& operator()(int l, int m) const {
-        //return table.at(l*(l+1) + m);
-        return table[l*(l+1) + m];
+    unsigned getTableIndex(unsigned l, int m) const { return l*(l+1) + m; }
+
+    const double& operator()(unsigned l, int m) const { 
+        return table[getTableIndex(l,m) ]; 
     }
 
 };
@@ -315,41 +385,46 @@ template<typename Vector, typename Source>
 struct SeriesExpansion<Vector, Source, 3>::SignTable {
 
     const std::function <double (int, int)> signFunction;
-    int max_order;
+    unsigned max_order = 0;
     std::vector<double> table; 
 
     int offset; 
 
     SignTable(const std::function <double (int, int)> signFunction, 
-            int order = 0): signFunction(signFunction), max_order(order) {
+            unsigned order = 0): signFunction(signFunction) {
 
         refresh(order); 
+        max_order = order; 
     }
 
-    void refresh(int order) {
+    void refresh(unsigned order) {
+
+        if(order <= max_order) { return; }
 
         max_order = order;
         offset = 2 * max_order * (max_order + 1); 
         table.resize((2*max_order+1)*(2*max_order+1));
 
-        unsigned coeff_index = 0;
         for(int l = -max_order; l <= max_order; ++l) {
             for(int m = -max_order; m <= max_order; ++m) {
-                table[coeff_index++] = signFunction(l, m);
+                table[getTableIndex(l,m)] = signFunction(l, m);
             }
         }
     }
 
+    unsigned getTableIndex(int l, int m) const {
+        return offset + l*(2*max_order+1) + m; 
+    }
+
     const double& operator()(int l, int m) const {
-        //return table.at(offset + l*(2*max_order+1) + m);
-        return table[offset + l*(2*max_order+1) + m];
+        return table[getTableIndex(l,m)];
     }
 
 };
 
 template<typename Vector, typename Source>
 SeriesExpansion<Vector, Source, 3>::SeriesExpansion(const Vector& center, 
-        int order): order(order), center(center), 
+        unsigned order): order(order), center(center), 
         coefficients((1+order)*(1+order)) {
     
     if(order > alm_table.max_order) { 
@@ -358,7 +433,6 @@ SeriesExpansion<Vector, Source, 3>::SeriesExpansion(const Vector& center,
         sign_fun2_table.refresh(order); 
         sign_fun3_table.refresh(order); 
     }
-      
 }
 
 template<typename Vector, typename Source>
@@ -386,7 +460,6 @@ Complex& SeriesExpansion<Vector, Source, 3>::operator()(unsigned n, int m) {
     // There are n*n coefficients M_k^m with k < n, => coefficient M_n^{-n} starts
     // at index n*n, coefficient M_n^m at n*n + n + m
 
-    //return coefficients.at(n*(n+1) + m); 
     return coefficients[n*(n+1) + m]; 
 }
 
@@ -394,7 +467,6 @@ template<typename Vector, typename Source>
 const Complex& SeriesExpansion<Vector, Source, 3>::operator()(unsigned n, int m) 
         const {
 
-    //return coefficients.at(n*(n+1) + m); 
     return coefficients[n*(n+1) + m]; 
 }
 
@@ -429,17 +501,7 @@ double SeriesExpansion<Vector, Source, 3>::A_coeff(const int n,
             "to be nonnegative."); 
     }
 
-    return (n % 2 ? -1 : 1) / std::sqrt(factorial(n-m) * factorial(n+m));
-}
-
-
-// TODO depreacted in favor of lookup tables
-// Implements the recurrence relation A_n^{m+1} = std::sqrt((n-m) / (n-m+1)) * A_n^m 
-template<typename Vector, typename Source> 
-double SeriesExpansion<Vector, Source, 3>::A_coeff_next(const int n, 
-        const int m, double A_nm) {
-
-    return std::sqrt((double)(n-m) / (n+m+1)) * A_nm;
+    return (n % 2 ? -1 : 1) / std::sqrt(gsl_sf_fact(n-m) * gsl_sf_fact(n+m));
 }
 
 // Implements the function i^(|k| - |m| - |k-m|) for k, m integers

@@ -12,7 +12,7 @@
 
 template<typename ChronoDuration>
 double chrono_duration(ChronoDuration d) {
-    return std::chrono::duration_cast<std::chrono::microseconds>(d).count()/1E6;  
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(d).count()/1E9;  
 }
 
 std::string time_proc_stamp(size_t iteration, size_t procId) {

@@ -38,7 +38,8 @@ protected:
 
 public: 
     AdaptiveFmmTree(std::vector<PointSource>& sources, 
-        std::size_t max_sources_per_leaf, double eps, double force_smoothing_eps = 0);
+        std::size_t max_sources_per_leaf, double eps, 
+        double force_smoothing_eps = 0);
 
     double evaluatePotential(const Vector& eval_point) const override; 
     Vector evaluateForcefield(const Vector& eval_point) const override; 
@@ -55,7 +56,7 @@ private:
     void computeNodeNeighbourhood(FmmNode* node); 
 
     void sourceToLocal(FmmNode& node);
-    void initializeLocalExpansion(FmmNode& node); 
+    void constructLocalExpansion(FmmNode& node); 
 
     FmmLeaf& getContainingLeaf(const Vector& point) const; 
 
@@ -167,7 +168,6 @@ AdaptiveFmmTree<d>::AdaptiveFmmTree(std::vector<PointSource>& sources,
         }
     }
 
-    // TODO remove
     assert(this->height == this->nodes.size()); 
     assert(this->height+1 == this->leaves.size()); 
 
@@ -205,14 +205,14 @@ AdaptiveFmmTree<d>::AdaptiveFmmTree(std::vector<PointSource>& sources,
             for(std::size_t i = 0; i < node_level.size(); i++) {
 
                 FmmNode& node = *node_level[i]; 
-                initializeLocalExpansion(node); 
+                constructLocalExpansion(node); 
 
             }
             #pragma omp for
             for(std::size_t i = 0; i < leaf_level.size(); i++) {
 
                 FmmNode& node = *leaf_level[i]; 
-                initializeLocalExpansion(node); 
+                constructLocalExpansion(node); 
             }
         }
     }
@@ -222,7 +222,7 @@ AdaptiveFmmTree<d>::AdaptiveFmmTree(std::vector<PointSource>& sources,
     for(std::size_t i = 0; i < final_level.size(); ++i) {
 
         FmmNode& node = *final_level[i]; 
-        initializeLocalExpansion(node); 
+        constructLocalExpansion(node); 
     }
 }
 
@@ -294,7 +294,7 @@ Vector_<d> AdaptiveFmmTree<d>::evaluateForcefield(const Vector_<d>& eval_point)
     return force_vec;
 }
 
-template<std::size_t d> // TODO
+template<std::size_t d> 
 void AdaptiveFmmTree<d>::toFile() {
 
     namespace fs =  std::filesystem;
@@ -432,8 +432,6 @@ void AdaptiveFmmTree<d>::buildTree(FmmNode* node,
         std::vector<FmmNode*> next_node_level; 
         std::vector<FmmLeaf*> next_leaf_level; 
 
-        assert(temp_node_sources.empty()); // TODO remove
-
         for(unsigned i = 0; i < nodes[depth-1].size(); ++i) {
 
             FmmNode* node = nodes[depth-1][i];
@@ -442,7 +440,7 @@ void AdaptiveFmmTree<d>::buildTree(FmmNode* node,
             double child_box_length = node->box_length/2; 
             unsigned child_depth = node->depth + 1;
 
-            assert(child_depth == depth);  // TODO remove
+            assert(child_depth == depth);  
 
             auto child_sources = refineOrthant(node->center, node_sources[i]); 
 
@@ -475,12 +473,8 @@ void AdaptiveFmmTree<d>::buildTree(FmmNode* node,
         node_sources.swap(temp_node_sources); 
         temp_node_sources.clear(); 
         
-        assert(node_sources.size() == next_node_level.size()); // TODO remove
-        
         refine = !next_node_level.empty(); 
-        if(refine) {
-            nodes.push_back(next_node_level); 
-        }
+        if(refine) { nodes.push_back(next_node_level); }
         leaves.push_back(next_leaf_level); 
     }
 
@@ -558,7 +552,7 @@ void AdaptiveFmmTree<d>::sourceToLocal(FmmNode& node) {
 }
 
 template<std::size_t d>
-void AdaptiveFmmTree<d>::initializeLocalExpansion(FmmNode& node) {
+void AdaptiveFmmTree<d>::constructLocalExpansion(FmmNode& node) {
 
     this->localToLocal(node);
     this->multipoleToLocal(node);
