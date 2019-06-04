@@ -5,6 +5,7 @@
 #include <iostream> 
 #include <numeric> 
 #include <cassert> 
+#include <cmath> 
 
 namespace fmm {
 
@@ -167,6 +168,9 @@ struct PointSource_ {
 
     PointSource_(Vector_<d> position = {}, double q = 0): position(position), q(q) {}
     PointSource_(std::array<double, d> position, double q): position(position), q(q) {}
+
+    double& operator[](std::size_t index) { return position[index]; }
+    const double& operator[](std::size_t index) const { return position[index]; }
 
     bool operator==(const PointSource_& rhs) const { 
         return this->q == rhs.q && this->position == rhs.position;

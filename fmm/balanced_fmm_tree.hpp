@@ -38,7 +38,7 @@ protected:
 
 public: 
     BalancedFmmTree(std::vector<PointSource>& sources, std::size_t items_per_cell, 
-            double eps);
+            double eps, double force_smoothing_eps);
 
     double evaluatePotential(const Vector& eval_point) const; 
     Vector evaluateForcefield(const Vector& eval_point) const; 
@@ -79,8 +79,7 @@ struct BalancedFmmTree<d>::FmmNode: BaseNode {
 };
 
 template<std::size_t d>
-struct BalancedFmmTree<d>::FmmLeaf: 
-        BalancedFmmTree<d>::FmmNode {
+struct BalancedFmmTree<d>::FmmLeaf: BalancedFmmTree<d>::FmmNode {
 
     using Super = BalancedFmmTree<d>::FmmNode;
 
@@ -96,8 +95,9 @@ struct BalancedFmmTree<d>::FmmLeaf:
 
 template<std::size_t d>
 BalancedFmmTree<d>::BalancedFmmTree(std::vector<PointSource>& sources, 
-        std::size_t sources_per_cell, double eps): BalancedOrthtree<Vector, d>(),
-        AbstractFmmTree<d>(sources) { 
+        std::size_t sources_per_cell, double eps, double force_smoothing_eps): 
+        BalancedOrthtree<Vector, d>(), 
+        AbstractFmmTree<d>(sources, force_smoothing_eps) { 
 
     // Determine expansion order, tree height, numbers of nodes and leaves
     this->order = (ceil(log(1/eps) / log(2))), 
@@ -108,8 +108,7 @@ BalancedFmmTree<d>::BalancedFmmTree(std::vector<PointSource>& sources,
     n_leaves = pow(AOT::n_children, this->height);
 
     // Determine bounding box lenghts and center 
-    auto [lower_bounds, upper_bounds] 
-        = AbstractFmmTree<d>::getDataRange(sources); 
+    auto [lower_bounds, upper_bounds] = AbstractFmmTree<d>::getDataRange(); 
     auto extents = (upper_bounds - lower_bounds).data(); 
     double box_length = *std::max_element(extents.begin(), extents.end());
     Vector center = 0.5 * (lower_bounds + upper_bounds); 
@@ -119,7 +118,7 @@ BalancedFmmTree<d>::BalancedFmmTree(std::vector<PointSource>& sources,
         this->nodes = nullptr; 
         this->leaves = new FmmLeaf[n_leaves /* == 1 */];   
         this->leaves[0] = FmmLeaf(center, box_length, 0, nullptr, this->order);
-        this->computeNodeNeighbourhood(this->leaves[0]);
+        this->computeNodeNeighbourhood(&this->leaves[0]);
 
         std::vector<PointSource>* leaf_sources 
             = new std::vector<PointSource>(this->sources);
@@ -238,11 +237,11 @@ double BalancedFmmTree<d>::
     for(auto leaf : containing_leaf.near_neighbours) {
         if(leaf != &containing_leaf) {
             pot += AFMMT::evalScalarInteraction(*(static_cast<FmmLeaf*>(leaf)->sources), 
-                eval_point, AFMMT::potentialFunction);
+                eval_point, this->force_smoothing_eps, AFMMT::potentialFunction);
         }
         else {
             pot += AFMMT::evalScalarInteraction(*containing_leaf.sources, 
-                    eval_point, AFMMT::safePotentialFunction);
+                eval_point, this->force_smoothing_eps, AFMMT::safePotentialFunction);
         }
     }
     
@@ -267,11 +266,11 @@ Vector_<d> BalancedFmmTree<d>::evaluateForcefield(const Vector_<d>& eval_point)
         if(leaf != &containing_leaf) {
             force_vec += AFMMT::evalVectorInteraction(
                 *(static_cast<FmmLeaf*>(leaf)->sources), eval_point, 
-                AFMMT::forceFunction);
+                this->force_smoothing_eps, AFMMT::forceFunction);
         }
         else {
             force_vec += AFMMT::evalVectorInteraction(*containing_leaf.sources, 
-                    eval_point, AFMMT::safeForceFunction);
+                eval_point, this->force_smoothing_eps, AFMMT::safeForceFunction);
         }
     }
 
@@ -382,7 +381,8 @@ void BalancedFmmTree<d>::computeNodeNeighbourhood(FmmNode* node) {
             double distance = (center - child->center).norm();  
             FmmNode* child_ptr = static_cast<FmmNode*>(child);
             if(node->adjacent(child_ptr)) { // child is near neighbour
-            //if(distance < this->max_neighbour_distance * node->box_length) { // child is near neighbour
+            //if(distance < this->max_neighbour_distance * node->box_length) {
+            //child is near neighbour
                 near_neighbours.push_back(child_ptr);  
             }
             else {
@@ -463,19 +463,6 @@ void BalancedFmmTree<d>::distributePointSources() {
         FmmLeaf& leaf = leaves[k]; 
         auto indices = this->getLeafBoxIndices(leaf.center);
         leaf.sources = leaf_source_vectors[this->getFlatIndex(indices)]; 
-
-        // Store all
-        // buckets contiguously in the original sources array. Since the leaves
-        // array is in BFS order (or equivalently, Morton sorted), this is
-        // equivalent to sorting the buckets w.r.t. the Morton index of their leaves
-        //
-        // TODO could use this for implicit association of sources and leaves
-        // via offsets in sources instead of explicitly storing copies of
-        // sources in leaves
-
-//      for(auto source : *leaf.sources) {
-//          sources[source_index++] = source; 
-//      }
     }
      
     delete[] leaf_source_vectors; 

@@ -21,8 +21,8 @@ EXTERN_C DLLEXPORT int FMM2D_Forces(WolframLibraryData libData, mint Argc,
     mreal* positions_data = libData->MTensor_getRealData(positions); 
     mreal* charge_data = libData->MTensor_getRealData(charges); 
 
-    const std::size_t items_per_leaf = MArgument_getInteger(Args[2]); 
-    const double eps = MArgument_getReal(Args[3]); 
+    const mint items_per_leaf = MArgument_getInteger(Args[2]); 
+    const mreal eps = MArgument_getReal(Args[3]); 
 
     MTensor out; 
     mint out_rank = 1;
@@ -45,7 +45,7 @@ EXTERN_C DLLEXPORT int FMM2D_Forces(WolframLibraryData libData, mint Argc,
         double q = charge_data[i];  
         sources.push_back({v,q}); 
     }
-    
+
     AdaptiveFmmTree<d> fmm_tree(sources, items_per_leaf, eps);  
     std::vector<Vec> forces = fmm_tree.evaluateParticleForces();  
 

@@ -8,6 +8,7 @@
 #include <cstdlib> 
 #include <cmath> 
 #include <chrono> 
+#include <filesystem> 
 
 #include <valgrind/callgrind.h> 
 
@@ -21,14 +22,15 @@ int main(int argc, char *argv[]) {
     
     #define adaptive true
     const bool uniform = false; 
-    const bool from_file = true; 
+    const bool from_file = false; 
 
-    size_t N = 10000;
-    const size_t items_per_leaf = 50; 
-    const size_t d = 2;
-    const double eps = 1E-4; 
+    size_t N = 1000;
+    const size_t items_per_leaf = 10; 
+    const size_t d = 3;
+    const double eps = 1E-5; 
     const size_t order = ceil(log(1/eps) / log(2)); 
     const double extent = 1E-6;
+    const double force_smoothing_eps = 0; 
 
     const size_t seed = 42; 
     srand(seed); 
@@ -36,15 +38,18 @@ int main(int argc, char *argv[]) {
     using Vec = Vector_<d>;
     using Src = PointSource_<d>;
 
-    constexpr auto EPot = fields::electrostaticPotential_s<Vec, Src, d>;
-    constexpr auto EFrc = fields::electrostaticForce_s<Vec, Src, d>;
+    constexpr auto EPot = fields::safeElectrostaticPotential<Vec, Src, d>;
+    constexpr auto EFrc = fields::safeElectrostaticForce<Vec, Src, d>;
     constexpr auto evalScalarInteraction = evaluateInteraction<Vec, Src, double>;
     constexpr auto evalVectorInteraction = evaluateInteraction<Vec, Src, Vec>;
 
     std::vector<Src> sources;
 
     if(from_file) {
-        sources = getSourcesFromFile<d>("sources.dat");  
+        if(!std::filesystem::exists("input/sources.dat")) {
+            throw std::runtime_error("File not found.");  
+        }
+        sources = readSourcesFromFile<d>("input/sources.dat");  
         N = sources.size(); 
     }
     else {
@@ -77,9 +82,9 @@ int main(int argc, char *argv[]) {
 
     CALLGRIND_TOGGLE_COLLECT;
     #if adaptive
-        AdaptiveFmmTree<d> fmm_tree(sources, items_per_leaf, eps);
+        AdaptiveFmmTree<d> fmm_tree(sources, items_per_leaf, eps, force_smoothing_eps);
     #else 
-        BalancedFmmTree<d> fmm_tree(sources, items_per_leaf, eps);
+        BalancedFmmTree<d> fmm_tree(sources, items_per_leaf, eps, force_smoothing_eps);
     #endif
     CALLGRIND_TOGGLE_COLLECT;
 
@@ -97,15 +102,15 @@ int main(int argc, char *argv[]) {
 
     Vec eval_point = sources[1].position;  
     std::cout << fmm_tree.evaluatePotential(eval_point) << std::endl; 
-    std::cout << evalScalarInteraction(sources, eval_point, EPot) << std::endl;
+    std::cout << evalScalarInteraction(sources, eval_point, 
+            force_smoothing_eps, EPot) << std::endl;
 
     std::cout << fmm_tree.evaluateForcefield(eval_point) << std::endl;
-    std::cout << evalVectorInteraction(sources, eval_point, EFrc) << std::endl;
+    std::cout << evalVectorInteraction(sources, eval_point, 
+            force_smoothing_eps, EFrc) << std::endl;
 
     t1 = std::chrono::high_resolution_clock::now();
-    CALLGRIND_TOGGLE_COLLECT;
     auto potentials = fmm_tree.evaluateParticlePotentialEnergies(); 
-    CALLGRIND_TOGGLE_COLLECT;
     t2 = std::chrono::high_resolution_clock::now();
     std::cout << "fmm potential computation: " 
         << chrono_duration(t2-t1) << "s" << std::endl; 
@@ -116,14 +121,15 @@ int main(int argc, char *argv[]) {
     #pragma omp parallel for
     for(std::size_t i = 0; i < sources.size(); ++i) {
         ref_potentials[i] =  sources[i].sourceStrength() 
-            * evalScalarInteraction(sources, sources[i].position, EPot);
+            * evalScalarInteraction(sources, sources[i].position,
+            force_smoothing_eps, EPot);
     }
     t2 = std::chrono::high_resolution_clock::now();
 
-    std::vector<double> diffs(potentials.size()); 
+    std::vector<double> diffs(N); 
     std::transform (
         potentials.begin(), potentials.end(), ref_potentials.begin(), 
-        diffs.begin(), [](double a, double b) -> double { return std::abs((a-b)); } 
+        diffs.begin(), [](double a, double b) -> double { return std::abs(((a-b)/b)); } 
     );
     std::cout << "direct potential computation: " 
         << chrono_duration(t2-t1) << "s" << std::endl; 
@@ -133,18 +139,19 @@ int main(int argc, char *argv[]) {
 
   
     t1 = std::chrono::high_resolution_clock::now();
+    CALLGRIND_TOGGLE_COLLECT;
     auto forces = fmm_tree.evaluateParticleForces(); 
+    CALLGRIND_TOGGLE_COLLECT;
     t2 = std::chrono::high_resolution_clock::now();
     std::vector<Vec> ref_forces(sources.size()); 
     std::cout << "fmm force computation: " 
         << chrono_duration(t2-t1) << "s" << std::endl; 
 
-
     t1 = std::chrono::high_resolution_clock::now();
     #pragma omp parallel for
     for(std::size_t i = 0; i < sources.size(); ++i) {
         ref_forces[i] =  sources[i].sourceStrength() * evalVectorInteraction(sources, 
-            sources[i].position, EFrc);
+            sources[i].position, force_smoothing_eps, EFrc);
     }
 
     t2 = std::chrono::high_resolution_clock::now();

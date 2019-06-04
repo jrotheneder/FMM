@@ -3,11 +3,6 @@
 
 #include <stdexcept> 
 
-#include <boost/math/special_functions/factorials.hpp>
-#include <boost/math/special_functions/spherical_harmonic.hpp>
-#include <boost/math/constants/constants.hpp>
-#include <boost/math/special_functions/gamma.hpp>
-
 #include <gsl/gsl_sf_legendre.h> 
 
 #include "fmm_utility.hpp"
@@ -104,8 +99,9 @@ std::ostream& operator<<(std::ostream& o,
 template<typename Vector, typename Source>
 struct SeriesExpansion<Vector, Source, 3> {
 
-    // Lookup tables for frequently needed values
+    // Lookup tables for frequently needed quantities
     struct YlmTable;  // spherical harmonics
+    struct YlmDerivTable;  // derivatives of spherical harmonics
     struct AlmTable;  // A_l^m := (-1)^l/sqrt((l-m)!(l+m)!)
     struct SignTable; // for sign patterns like I^(|m|-|k-m|-|k|) [aka sign_fun2(k, m)]
 
@@ -167,9 +163,7 @@ struct SeriesExpansion<Vector, Source, 3>::YlmTable {
 
     std::vector<Complex> table;
      
-    // TODO clean up
     YlmTable(unsigned lmax, double theta, double phi): lmax(lmax), 
-//      theta(theta), phi(phi), table(((lmax + 1)*(lmax + 2))/2)  {
         theta(theta), phi(phi), table((lmax+1)*(lmax+1))  {
 
         using namespace std::complex_literals;
@@ -178,7 +172,7 @@ struct SeriesExpansion<Vector, Source, 3>::YlmTable {
         gsl_sf_legendre_array_e(GSL_SF_LEGENDRE_SCHMIDT, lmax, 
             std::cos(theta), -1, result); 
 
-        for(std::size_t l = 0; l <= lmax; ++l) {
+        for(unsigned l = 0; l <= lmax; ++l) {
 
             //Handle m = 0 differently due to the Schmidt semi-normalization
             //convention used with gsl (comes the closest to what we want)
@@ -187,7 +181,7 @@ struct SeriesExpansion<Vector, Source, 3>::YlmTable {
             Complex exp_phi = std::exp(1i * phi); 
             Complex exp_m_phi = exp_phi; 
 
-            for(std::size_t m = 1; m <= l; ++m) {
+            for(unsigned m = 1; m <= l; ++m) {
                 Complex Y_lm = result[gsl_sf_legendre_array_index(l, m)]
                      * exp_m_phi / std::sqrt(2);
 
@@ -203,15 +197,87 @@ struct SeriesExpansion<Vector, Source, 3>::YlmTable {
     }
 
     unsigned getTableIndex(unsigned l, int m) const {
-        // There are l*l  coefficients M_k^m with k < l and m >= 0, 
-        // => coefficient M_l^{-l} is at index l*l, coefficient 
-        // M_l^m at l*l + l + m. 
         return l*(l+1) + m; 
     }
 
     const Complex& operator()(unsigned l, int m) const {
-        //return table.at(getTableIndex(l, m));
         return table[getTableIndex(l, m)];
+    }
+};
+
+template<typename Vector, typename Source>
+struct SeriesExpansion<Vector, Source, 3>::YlmDerivTable {
+
+    const unsigned lmax; 
+    const double theta; 
+    const double phi; 
+
+    std::vector<Complex> ylm_table; // Y_l^m(theta, phi)
+    std::vector<Complex> ylm_dtheta_table; // d/dθ Y_l^m(theta, phi)
+    std::vector<Complex> exp_table; // e^(im *phi), m >=0 at position m.
+     
+    YlmDerivTable(unsigned lmax, double theta, double phi): lmax(lmax), 
+        theta(theta), phi(phi), ylm_table((lmax+1)*(lmax+1)), 
+        ylm_dtheta_table((lmax+1)*(lmax+1)), exp_table(lmax+1)    {
+
+        using namespace std::complex_literals;
+            
+        Complex exp_phi = std::exp(1i * phi); 
+        Complex exp_m_phi = 1; 
+
+        for(unsigned l = 0; l <= lmax; ++l) {
+            exp_table[l] = exp_m_phi;   
+            exp_m_phi *= exp_phi; 
+        }
+
+        const unsigned gsl_array_size = gsl_sf_legendre_array_n(lmax); 
+        double* result = new double[2 * gsl_array_size];  
+        gsl_sf_legendre_deriv_alt_array_e(GSL_SF_LEGENDRE_SCHMIDT, lmax, 
+            std::cos(theta), -1, result, result + gsl_array_size);  
+        
+        for(unsigned l = 0; l <= lmax; ++l) {
+
+            //Handle m = 0 differently due to the Schmidt semi-normalization
+            //convention used with gsl (comes the closest to what we want)
+            ylm_table[getTableIndex(l, 0)] 
+                = result[gsl_sf_legendre_array_index(l, 0)];
+            ylm_dtheta_table[getTableIndex(l, 0)] 
+                = result[gsl_array_size + gsl_sf_legendre_array_index(l, 0)];
+
+
+            for(unsigned m = 1; m <= l; ++m) {
+                Complex Y_lm = result[gsl_sf_legendre_array_index(l, m)]
+                     * exp_table[m] / std::sqrt(2);
+                Complex Y_lm_dtheta 
+                    = result[gsl_array_size + gsl_sf_legendre_array_index(l, m)]
+                     * exp_table[m] / std::sqrt(2);
+
+                //If m = -|m| < 0, our convention implies M_l^{-|m|} = (M_l^|m|)^*
+                ylm_table[getTableIndex(l, m)] = Y_lm; 
+                ylm_table[getTableIndex(l, -m)] = std::conj(Y_lm);  
+                ylm_dtheta_table[getTableIndex(l, m)] = Y_lm_dtheta; 
+                ylm_dtheta_table[getTableIndex(l, -m)] = std::conj(Y_lm_dtheta); 
+
+            }
+        }
+
+        delete[] result;
+    }
+
+    unsigned getTableIndex(unsigned l, int m) const { return l*(l+1) + m; }
+
+    const Complex& Y(unsigned l, int m) const {
+        return ylm_table[getTableIndex(l,m)];    
+    }
+
+    const Complex& dtheta(unsigned l, int m) const {
+        return ylm_dtheta_table[getTableIndex(l,m)];    
+    }
+
+    const Complex dphi(unsigned l, int m) const {
+
+        using namespace std::complex_literals;
+        return 1i * (double)m * ylm_table.at(getTableIndex(l,m));    
     }
 };
 

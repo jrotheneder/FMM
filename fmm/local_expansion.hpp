@@ -398,54 +398,32 @@ Vector LocalExpansion<Vector, Source, 3>::evaluateForcefield(
 
     const auto [r, theta, phi] = (eval_point - this->center).toSpherical().data(); 
 
+    // Precomputed values of Y_l^m(theta, phi) and its derivativesj
+    const typename Super::YlmDerivTable ylm_table(this->order, theta, phi); 
+
     // Components of the gradient of the potential evaluated in spherical
     // coordinates (and w.r.t. the spherical coordinate basis) 
     double force_r = 0;     // \hat r component (radial) of the force
     double force_theta = 0; // \hat theta component (polar) of the force
     double force_phi = 0;   // \hat phi component (azimuthal) of the force
 
-    // TODO smarter pow 
-    // TODO switch to more readable ME(n,m) if no perf. penality
-    // TODO symmetry among coeff.
-    // TODO double comp. of YLM (in and outside of d/dtheta), d/phi? 
-    // TODO possible recursion relation for YLM / legendre? 
-    unsigned coeff_index = 1; // index of next coefficient to be computed
+    double r_pow = 1; 
     for(int n = 1; n <= this->order; ++n) { 
-
-        double r_pow = std::pow(r, n-1); 
 
         for(int m = -n; m <= n; ++m) {
 
-            //Complex ylm_val = YLM(n, m, theta, phi) * r_pow;  
-            const Complex L_nm = this->coefficients[coeff_index++];
-            
-            force_r += r_pow * (double) n * (L_nm * YLM(n, m, theta, phi)).real(); 
-            force_theta += r_pow * (L_nm * YLM_deriv_theta(n, m, theta, phi)).real(); 
-            force_phi += r_pow * (L_nm * YLM_deriv_phi(n, m, theta, phi)).real() 
+            const Complex L_nm = (*this)(n,m) ;
+
+            force_r += r_pow * (double) n * (L_nm * ylm_table.Y(n,m)).real(); 
+            force_theta += r_pow * (L_nm * ylm_table.dtheta(n, m)).real(); 
+            force_phi += r_pow * (L_nm * ylm_table.dphi(n, m)).real() 
                 / std::sin(theta); 
         }
+
+        r_pow *= r; 
     }
 
     return -Vector{{force_r, force_theta, force_phi}}.toCartesianBasis(theta, phi); 
-}
-
-
-// Implements the function i^(|k-m|-|k|-|m|) for k, m integers
-template<typename Vector, typename Source> 
-double LocalExpansion<Vector, Source, 3>::le_sign_fun2(
-        const int k, const int m) {
-
-    const int exponent = std::abs(k-m) - std::abs(k) - std::abs(m); 
-    switch(std::abs(exponent) % 4) {
-        case 0  : return 1; 
-        case 2  : return -1;  
-    }
-
-    throw std::logic_error("Exponent in sign_fun2() is not expected to "
-        " be odd. Got input: k = " + std::to_string(k) + ", m = " 
-        + std::to_string(m)+ ", exponent is " + std::to_string(exponent) + "\n"
-        ); 
-
 }
 
 } // namespace fmm

@@ -28,20 +28,23 @@ protected:
     static constexpr auto potentialFunction
         = fields::electrostaticPotential<Vector, PointSource, d>;
     static constexpr auto safePotentialFunction
-        = fields::electrostaticPotential_s<Vector, PointSource, d>;
+        = fields::safeElectrostaticPotential<Vector, PointSource, d>;
     static constexpr auto forceFunction
         = fields::electrostaticForce<Vector, PointSource, d>;
     static constexpr auto safeForceFunction
-        = fields::electrostaticForce_s<Vector, PointSource, d>;
+        = fields::safeElectrostaticForce<Vector, PointSource, d>;
 
     const double max_neighbour_distance = 1.1 * sqrt(d); 
     //in units of box_length + padding to avoid numerical issues
 
     const std::vector<PointSource>& sources;
     std::size_t order;
+    double force_smoothing_eps; 
 
 public: 
-    AbstractFmmTree(std::vector<PointSource>& sources): sources(sources) {
+    AbstractFmmTree(std::vector<PointSource>& sources, double force_smoothing_eps): 
+            sources(sources), force_smoothing_eps(force_smoothing_eps) {
+
         if constexpr(!(d == 2 || d == 3)) {
             throw std::logic_error("Implementations are only available for "
                 "2 & 3 dimensions."); 
@@ -58,10 +61,8 @@ public:
 protected:
     std::tuple<Vector, Vector> getDataRange() const;
 
-    template<typename FmmNode>
-    void localToLocal(FmmNode& node);
-    template<typename FmmNode>
-    void multipoleToLocal(FmmNode& node);
+    template<typename FmmNode> void localToLocal(FmmNode& node);
+    template<typename FmmNode> void multipoleToLocal(FmmNode& node);
 };
 
 template<std::size_t d>

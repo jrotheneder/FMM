@@ -38,7 +38,7 @@ protected:
 
 public: 
     AdaptiveFmmTree(std::vector<PointSource>& sources, 
-            std::size_t max_sources_per_leaf, double eps);
+        std::size_t max_sources_per_leaf, double eps, double force_smoothing_eps = 0);
 
     double evaluatePotential(const Vector& eval_point) const override; 
     Vector evaluateForcefield(const Vector& eval_point) const override; 
@@ -112,8 +112,9 @@ struct AdaptiveFmmTree<d>::FmmLeaf:
 
 template<std::size_t d>
 AdaptiveFmmTree<d>::AdaptiveFmmTree(std::vector<PointSource>& sources, 
-        std::size_t max_sources_per_leaf, double eps): AdaptiveOrthtree<Vector, d>(),
-        AbstractFmmTree<d>(sources) { 
+        std::size_t max_sources_per_leaf, double eps, double force_smoothing_eps): 
+        AdaptiveOrthtree<Vector, d>(), 
+        AbstractFmmTree<d>(sources, force_smoothing_eps) { 
 
     // Determine expansion order, tree height, numbers of nodes and leaves
     this->order = (ceil(log(1/eps) / log(2))); 
@@ -248,11 +249,11 @@ double AdaptiveFmmTree<d>::evaluatePotential(const Vector& eval_point) const {
     for(auto leaf : containing_leaf.near_neighbours) {
         if(leaf != &containing_leaf) {
             pot += AFMMT::evalScalarInteraction(static_cast<FmmLeaf*>(leaf)->sources, 
-                eval_point, AFMMT::potentialFunction);
+                eval_point, this->force_smoothing_eps, AFMMT::potentialFunction);
         }
         else {
             pot += AFMMT::evalScalarInteraction(containing_leaf.sources, 
-                    eval_point, AFMMT::safePotentialFunction);
+                    eval_point, this->force_smoothing_eps, AFMMT::safePotentialFunction);
         }
     }
     
@@ -282,11 +283,11 @@ Vector_<d> AdaptiveFmmTree<d>::evaluateForcefield(const Vector_<d>& eval_point)
         if(leaf != &containing_leaf) {
             force_vec += AFMMT::evalVectorInteraction(
                 static_cast<FmmLeaf*>(leaf)->sources, eval_point, 
-                AFMMT::forceFunction);
+                this->force_smoothing_eps, AFMMT::forceFunction);
         }
         else {
             force_vec += AFMMT::evalVectorInteraction(containing_leaf.sources, 
-                    eval_point, AFMMT::safeForceFunction);
+                    eval_point, this->force_smoothing_eps, AFMMT::safeForceFunction);
         }
     }
 

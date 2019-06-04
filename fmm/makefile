@@ -4,7 +4,7 @@ EXT = cpp
 DEBUGFLAGS = -g -ggdb -O3 #-fno-inline
 #OFLAGS = -O3 -fopenmp
 OFLAGS = -O3 -ffast-math -fopenmp
-LIBS = -lstdc++fs -lgsl -lcblas 
+LIBS = -lstdc++fs -lgsl -lgslcblas 
 CXXFLAGS = -Wall -Wno-unknown-pragmas -fno-builtin -std=c++17 -pedantic 
 
 TARGET = test/fmm_tree
@@ -15,12 +15,6 @@ DEPENDS = makefile $(TARGET).$(EXT) abstract_orthtree.hpp balanced_orthtree.hpp 
 		  adaptive_fmm_tree.hpp direct.hpp
 
 all: $(TARGET)
-
-# $(TARGET): $(TARGET).o $(DEPENDS)  #link
-# 	$(CXX) $(CXXFLAGS) $(TARGET).o -o $(TARGET)
-# 
-# $(TARGET).o: $(TARGET).cpp $(DEPENDS) # compile
-# 	$(CXX) -c $(CXXFLAGS) $(TARGET).$(EXT)
 
 $(TARGET): $(DEPENDS)  #link
 	$(CXX) $(CXXFLAGS) $(OFLAGS) $(TARGET).$(EXT) -o $(TARGET) $(LIBS) 
@@ -43,7 +37,7 @@ perf: all
 	perf stat -r 5 ./$(TARGET)
 
 clean:
-	rm -f *.o $(TARGET) logs/*.dat *.out
+	rm -f *.o $(TARGET) logs/*.dat *.out *.dat
 
 
 

@@ -4,6 +4,12 @@
 #include <sstream> 
 #include <string> 
 #include <fstream> 
+#include <cmath> 
+
+#include <boost/math/special_functions/factorials.hpp>
+#include <boost/math/special_functions/spherical_harmonic.hpp>
+#include <boost/math/constants/constants.hpp>
+#include <boost/math/special_functions/gamma.hpp>
 
 #include "vector.hpp"
 
@@ -60,7 +66,7 @@ double binomial(std::size_t n, std::size_t k) {
 }
 
 template<std::size_t d>
-std::vector<PointSource_<d>> getSourcesFromFile(std::string filename) {
+std::vector<PointSource_<d>> readSourcesFromFile(std::string filename) {
 
     std::ifstream ifile(filename); 
     std::string line;   
@@ -83,6 +89,33 @@ std::vector<PointSource_<d>> getSourcesFromFile(std::string filename) {
 
     return sources; 
 }
+
+template<typename T>
+std::vector<T> vectorFromFile(std::string filename) {
+
+    std::ifstream ifile(filename); 
+    std::vector<T> outv; 
+
+    T temp; 
+    while(ifile >> temp) {
+        outv.push_back(temp); 
+    }
+
+    return outv; 
+}
+
+template<typename T>
+void vectorFromFile(std::string filename, T* dest_array) {
+
+    std::ifstream ifile(filename); 
+    T temp; 
+    unsigned index = 0; 
+
+    while(ifile >> temp) {
+        dest_array[index++] = temp; 
+    }
+}
+
 
 } // namespace fmm
 #endif 
