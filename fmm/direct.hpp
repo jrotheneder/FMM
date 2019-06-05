@@ -8,6 +8,7 @@
 namespace fmm {
 namespace fields {
 
+// TODO improve this!
 template<typename Vector, typename Source, std::size_t d>
 double electrostaticPotential(const Source& src, const Vector& evaluation_point, 
         const double eps = 0) {
@@ -21,7 +22,7 @@ double electrostaticPotential(const Source& src, const Vector& evaluation_point,
 template<typename Vector, typename Source, std::size_t d>
 double gravitationalPotential(const Source& src, const Vector& evaluation_point, 
         const double eps = 0) {
-    return -electrostaticPotential(src, evaluation_point, eps); 
+    return -electrostaticPotential<Vector, Source, d>(src, evaluation_point, eps); 
 }
 
 template<typename Vector, typename Source, std::size_t d>
@@ -38,7 +39,7 @@ Vector electrostaticForce(const Source& src, const Vector& evaluation_point,
 template<typename Vector, typename Source, std::size_t d>
 Vector gravitationalForce(const Source& src, const Vector& evaluation_point,
         const double eps = 0) {
-    return - electrostaticForce(src, evaluation_point, eps); 
+    return -electrostaticForce<Vector, Source, d>(src, evaluation_point, eps); 
 }
 
 // safe implementations: these check whether source.position == evaluation_point
@@ -60,7 +61,9 @@ double safeElectrostaticPotential(const Source& src, const Vector& evaluation_po
 template<typename Vector, typename Source, std::size_t d>
 double safeGravitationalPotential(const Source& src, const Vector& evaluation_point, 
         const double eps = 0) {
-    return -electrostaticPotential_safe(src, evaluation_point, eps); 
+
+    return -safeElectrostaticPotential<Vector, Source, d>(src, 
+        evaluation_point, eps); 
 }
 
 template<typename Vector, typename Source, std::size_t d>
@@ -81,7 +84,7 @@ Vector safeElectrostaticForce(const Source& src, const Vector& evaluation_point,
 template<typename Vector, typename Source, std::size_t d>
 Vector safeGravitationalForce(const Source& src, const Vector& evaluation_point, 
         const double eps = 0) {
-    return - electrostaticForce(src, evaluation_point, eps); 
+    return -electrostaticForce<Vector, Source, d>(src, evaluation_point, eps); 
 }
 
 } //namespace fields

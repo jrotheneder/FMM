@@ -16,8 +16,8 @@ protected:
     using Vector = Vector_<d>; 
     using PointSource = PointSource_<d>;
 
-    using ME = MultipoleExpansion<Vector, PointSource, d>;
-    using LE = LocalExpansion<Vector, PointSource, d>;
+    using ME = MultipoleExpansion<d>;
+    using LE = LocalExpansion<d>;
 
 
     static constexpr auto evalScalarInteraction 
@@ -26,13 +26,13 @@ protected:
         = evaluateInteraction<Vector, PointSource, Vector>;
 
     static constexpr auto potentialFunction
-        = fields::electrostaticPotential<Vector, PointSource, d>;
+        = fields::gravitationalPotential<Vector, PointSource, d>;
     static constexpr auto safePotentialFunction
-        = fields::safeElectrostaticPotential<Vector, PointSource, d>;
+        = fields::safeGravitationalPotential<Vector, PointSource, d>;
     static constexpr auto forceFunction
-        = fields::electrostaticForce<Vector, PointSource, d>;
+        = fields::gravitationalForce<Vector, PointSource, d>;
     static constexpr auto safeForceFunction
-        = fields::safeElectrostaticForce<Vector, PointSource, d>;
+        = fields::safeGravitationalForce<Vector, PointSource, d>;
 
     const double max_neighbour_distance = 1.1 * sqrt(d); 
     //in units of box_length + padding to avoid numerical issues

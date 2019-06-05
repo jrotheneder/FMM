@@ -28,8 +28,8 @@ protected:
     using ADOT = AdaptiveOrthtree<Vector, d>;
     using AFMMT = AbstractFmmTree<d>;
     using BaseNode = typename AOT::BaseNode; 
-    using ME = MultipoleExpansion<Vector, PointSource, d>;
-    using LE = LocalExpansion<Vector, PointSource, d>;
+    using ME = MultipoleExpansion<d>;
+    using LE = LocalExpansion<d>;
 
     std::vector<std::vector<FmmNode*>> nodes;  // store nodes and leaves levelwise
     std::vector<std::vector<FmmLeaf*>> leaves; 
@@ -60,17 +60,13 @@ private:
 
     FmmLeaf& getContainingLeaf(const Vector& point) const; 
 
-
 };
 
 template<std::size_t d>
 struct AdaptiveFmmTree<d>::FmmNode: BaseNode {
 
-    using ME = MultipoleExpansion<Vector, PointSource, d>;
-    using LE = LocalExpansion<Vector, PointSource, d>;
-
-    ME multipole_expansion; 
-    LE local_expansion;
+    MultipoleExpansion<d> multipole_expansion; 
+    LocalExpansion<d> local_expansion;
 
     std::vector<FmmNode*> near_neighbours;  // list U for leaves, cont .all NNs for nodes
     std::vector<FmmNode*> interaction_list; // list V (see docs)
@@ -253,7 +249,7 @@ double AdaptiveFmmTree<d>::evaluatePotential(const Vector& eval_point) const {
         }
         else {
             pot += AFMMT::evalScalarInteraction(containing_leaf.sources, 
-                    eval_point, this->force_smoothing_eps, AFMMT::safePotentialFunction);
+                eval_point, this->force_smoothing_eps, AFMMT::safePotentialFunction);
         }
     }
     
@@ -268,7 +264,6 @@ Vector_<d> AdaptiveFmmTree<d>::evaluateForcefield(const Vector_<d>& eval_point)
 
     // Contributions from local expansion of containing leaf
     Vector force_vec = containing_leaf.local_expansion.evaluateForcefield(eval_point); 
-
     // Contributions from multipole expansions of nodes & leaves contained in
     // containing leaf's W list
     for(FmmNode* node : containing_leaf.W_list) {

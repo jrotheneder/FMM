@@ -11,26 +11,22 @@
 
 namespace fmm {
 
-template<typename Vector, typename Source, unsigned d>
-struct MultipoleExpansion {
+template<unsigned d> struct MultipoleExpansion: SeriesExpansion<d> {};
 
-    static_assert(d==2 || d==3, 
-        "This implementation supports only 2 or 3 dimensions.\n"
-    ); 
-};
 
 /******************************************************************************/
 /*                      2D Multipole Expansion Implementation                    */
 /******************************************************************************/
-template<typename Vector, typename Source> 
-struct MultipoleExpansion<Vector, Source, 2>: SeriesExpansion<Vector, Source, 2> {
+template<> struct MultipoleExpansion<2>: SeriesExpansion<2> {
 
-    using Super = SeriesExpansion<Vector, Source, 2>;
-    using ME = MultipoleExpansion; 
+    using Vector = Vector_<2>; 
+    using PointSource = PointSource_<2>;
+    using Super = SeriesExpansion<2>;
+    using ME = MultipoleExpansion<2>;
 
     MultipoleExpansion(): Super() {}; 
     MultipoleExpansion(const Vector& center, unsigned order, 
-            std::vector<Source>& sources);
+            std::vector<PointSource>& sources);
     MultipoleExpansion(const Vector& center, std::vector<const ME*>& expansions);
 
     std::vector<Complex> shift(const Complex& shift) const;
@@ -38,17 +34,15 @@ struct MultipoleExpansion<Vector, Source, 2>: SeriesExpansion<Vector, Source, 2>
     double evaluatePotential(const Vector& eval_point) const;
     Vector evaluateForcefield(const Vector& eval_point) const;
 
-
 };
 
-template<typename Vector, typename Source> 
-MultipoleExpansion<Vector, Source, 2>::MultipoleExpansion(const Vector& center, 
-        unsigned order, std::vector<Source>& sources): Super(center, order) {
+MultipoleExpansion<2>::MultipoleExpansion(const Vector_<2>& center, 
+        unsigned order, std::vector<PointSource_<2>>& sources): Super(center, order) {
     
     // Compute series expansion coefficients a_0 through a_order: 
     for(std::size_t i = 0; i < sources.size(); ++i) {
 
-        Source& src = sources[i];
+        PointSource& src = sources[i];
 
         Complex z{src.position[0], src.position[1]};
         Complex z_rel = z - this->center; // Express z in box-local coordinates
@@ -63,10 +57,8 @@ MultipoleExpansion<Vector, Source, 2>::MultipoleExpansion(const Vector& center,
 }
 
 // Construct expansion from other expansions by shifting
-template<typename Vector, typename Source> 
-MultipoleExpansion<Vector, Source, 2>::MultipoleExpansion(
-        const Vector& center, std::vector<const ME*>& expansions): 
-        Super(center, expansions.at(0)->order) {
+MultipoleExpansion<2>::MultipoleExpansion(const Vector& center, 
+        std::vector<const ME*>& expansions): Super(center, expansions.at(0)->order) {
     
     for(const ME* me : expansions) {
 
@@ -82,20 +74,18 @@ MultipoleExpansion<Vector, Source, 2>::MultipoleExpansion(
 }
 
 // Shift is the vector (complex number) from the new to the old center.
-template<typename Vector, typename Source> 
-std::vector<Complex>  MultipoleExpansion<Vector, Source, 2>::shift(
-        const Complex& shift) const {
+std::vector<Complex>  MultipoleExpansion<2>::shift(const Complex& shift) const {
 
     std::vector<Complex> shifted_coefficients(this->order + 1); 
 
-    const typename Super::BinomialTable& binomial_table = Super::binomial_table; 
-    typename Super:: template PowTable<Complex> shift_pow_table(shift, this->order);
+    const typename tables::BinomialTable& binomial_table = Super::binomial_table; 
+    typename tables:: template PowTable<Complex> shift_pow_table(shift, this->order);
 
     double Q = (*this)(0).real(); 
     shifted_coefficients[0] = Q; 
-    for(unsigned l = 1; l <= this->order; ++l) {
+    for(int l = 1; l <= this->order; ++l) {
         shifted_coefficients[l] = -Q * shift_pow_table(l)  / (double)l; 
-        for(unsigned k = 1; k <= l; ++k) {
+        for(int k = 1; k <= l; ++k) {
             shifted_coefficients[l] += (*this)(k) * shift_pow_table(l-k) 
                 * binomial_table(l-1, k-1);  // [(4.15), 1]  
         }
@@ -104,10 +94,7 @@ std::vector<Complex>  MultipoleExpansion<Vector, Source, 2>::shift(
     return shifted_coefficients; 
 }
 
-template<typename Vector, typename Source> 
-double MultipoleExpansion<Vector, Source, 2>::evaluatePotential(
-        const Vector& eval_point) const {
-
+double MultipoleExpansion<2>::evaluatePotential(const Vector_<2>& eval_point) const {
 
     Complex z{eval_point[0], eval_point[1]}; // get complex repr.
     Complex z_rel = z - this->center; 
@@ -115,18 +102,17 @@ double MultipoleExpansion<Vector, Source, 2>::evaluatePotential(
     double Q = (*this)(0).real(); 
     Complex result = Q * log(z_rel); 
     
-    Complex z_rel_pow = z_rel; 
+    Complex z_rel_inv_pow = 1./z_rel; 
     for(unsigned j = 1; j < this->coefficients.size(); ++j) { 
-        result += (*this)(j) / z_rel_pow; 
-        z_rel_pow /= z_rel; 
+        result += (*this)(j) * z_rel_inv_pow; 
+        z_rel_inv_pow /= z_rel; 
     }
 
     return -result.real(); 
 } 
 
-template<typename Vector, typename Source> 
-Vector MultipoleExpansion<Vector, Source, 2>::evaluateForcefield(
-        const Vector& eval_point) const { 
+Vector_<2> MultipoleExpansion<2>::evaluateForcefield(const Vector_<2>& eval_point) 
+        const { 
 
     Complex z{eval_point[0], eval_point[1]}; // get complex repr.
     Complex z_rel = z - this->center; 
@@ -136,27 +122,28 @@ Vector MultipoleExpansion<Vector, Source, 2>::evaluateForcefield(
 
     Complex z_rel_inv_pow = 1./(z_rel * z_rel); 
     for(unsigned j = 1; j < this->coefficients.size(); ++j) { 
-        result -= (double)j * (*this)(j) / z_rel_inv_pow;
+        result -= (double)j * (*this)(j) * z_rel_inv_pow;
         z_rel_inv_pow /= z_rel; 
     }
 
     // The gravitational field is given by {{-result.real(), result.imag()}}.
     // For the electric field, return {{result.real(), -result.imag()}}.
-    return {{result.real(), -result.imag()}}; 
+    return {{-result.real(), +result.imag()}}; 
 }
-
 
 /******************************************************************************/
 /*                      3D Multipole Expansion Implementation                 */
 /******************************************************************************/
-template<typename Vector, typename Source> 
-struct MultipoleExpansion<Vector, Source, 3>: SeriesExpansion<Vector, Source, 3> {
+template<> struct MultipoleExpansion<3>: SeriesExpansion<3> {
 
-    using Super = SeriesExpansion<Vector, Source, 3>;
-    using ME = MultipoleExpansion; 
+    using Vector = Vector_<3>; 
+    using PointSource = PointSource_<3>;
+    using Super = SeriesExpansion<3>;
+    using ME = MultipoleExpansion;  
 
     MultipoleExpansion() {}
-    MultipoleExpansion(const Vector& center, int order, std::vector<Source>& sources);
+    MultipoleExpansion(const Vector& center, int order, 
+            std::vector<PointSource>& sources);
     MultipoleExpansion(const Vector& center, std::vector<const ME*>& expansions);
 
     MultipoleExpansion& operator+=(const MultipoleExpansion& rhs);
@@ -168,10 +155,8 @@ struct MultipoleExpansion<Vector, Source, 3>: SeriesExpansion<Vector, Source, 3>
 
 };
 
-template<typename Vector, typename Source> 
-MultipoleExpansion<Vector, Source, 3>::MultipoleExpansion(
-        const Vector& center, int order, std::vector<Source>& sources): 
-        Super(center, order) {
+MultipoleExpansion<3>::MultipoleExpansion(const Vector_<3>& center, int order, 
+        std::vector<PointSource_<3>>& sources): Super(center, order) {
 
     ME& self = *this; 
 
@@ -181,7 +166,7 @@ MultipoleExpansion<Vector, Source, 3>::MultipoleExpansion(
             = (sources[i].position - center).toSpherical().data(); 
 
         // Precomputed values of Y_l^m(theta, phi) 
-        const typename Super::YlmTable sphericalHarmonicY(this->order, theta, phi); 
+        const typename tables::YlmTable sphericalHarmonicY(this->order, theta, phi); 
 
         double r_pow = 1; 
         for(int n = 0; n <= order; ++n) {  
@@ -195,10 +180,8 @@ MultipoleExpansion<Vector, Source, 3>::MultipoleExpansion(
     }
 }
 
-template<typename Vector, typename Source> 
-MultipoleExpansion<Vector, Source, 3>::MultipoleExpansion(const Vector& center,
-        std::vector<const ME*>& expansions): 
-        Super(center, expansions[0]->order) { 
+MultipoleExpansion<3>::MultipoleExpansion(const Vector_<3>& center,
+        std::vector<const ME*>& expansions): Super(center, expansions[0]->order) { 
         
     for(const ME* me : expansions) {
 
@@ -212,17 +195,13 @@ MultipoleExpansion<Vector, Source, 3>::MultipoleExpansion(const Vector& center,
     }
 }
 
-template<typename Vector, typename Source>
-MultipoleExpansion<Vector, Source, 3>& MultipoleExpansion<Vector, Source, 3>::
-        operator+=(const MultipoleExpansion& rhs) {
+MultipoleExpansion<3>& MultipoleExpansion<3>::operator+=(const MultipoleExpansion& rhs) {
 
     Super::operator+=(rhs); 
     return *this;
 }
 
-template<typename Vector, typename Source> 
-std::vector<Complex> MultipoleExpansion<Vector, Source, 3>::shift(
-        const Vector& shift) const {
+std::vector<Complex> MultipoleExpansion<3>::shift(const Vector& shift) const {
 
     std::vector<Complex> shifted_coefficients(this->coefficients.size()); 
     const ME& outgoing = *this;  // outgoing expansion
@@ -230,11 +209,10 @@ std::vector<Complex> MultipoleExpansion<Vector, Source, 3>::shift(
     const auto [r, theta, phi] = shift.toSpherical().data(); 
 
     // Precomputed values of Y_l^m(theta, phi), A_l^m, sign patterns & powers of r
-    const typename Super::YlmTable sphericalHarmonicY(this->order, theta, phi); 
-    typename Super::AlmTable& A = Super::alm_table;
-    typename Super::SignTable& sign1 = Super::sign_fun1_table;
-    typename SeriesExpansion<Vector, Source, 2>:: template PowTable<double> 
-        r_pow_table(r, this->order);
+    const typename tables::YlmTable sphericalHarmonicY(this->order, theta, phi); 
+    typename tables::AlmTable& A = Super::alm_table;
+    typename tables::SignTable& sign1 = Super::sign_fun1_table;
+    typename tables::PowTable<double> r_pow_table(r, this->order);
       
     unsigned coeff_index = 0; // index of next coefficient to be computed
     for(int j = 0; j <= this->order; ++j) {  
@@ -261,16 +239,14 @@ std::vector<Complex> MultipoleExpansion<Vector, Source, 3>::shift(
     return shifted_coefficients;
 }
 
-template<typename Vector, typename Source> 
-double MultipoleExpansion<Vector, Source, 3>::evaluatePotential(
-        const Vector& eval_point) const { 
+double MultipoleExpansion<3>::evaluatePotential(const Vector_<3>& eval_point) const { 
 
     const ME& self = *this; 
 
     const auto [r, theta, phi] = (eval_point - this->center).toSpherical().data(); 
     Complex pot = 0; 
 
-    const typename Super::YlmTable sphericalHarmonicY(this->order, theta, phi); 
+    const typename tables::YlmTable sphericalHarmonicY(this->order, theta, phi); 
 
     double r_pow = 1/r; 
     for(int n = 0; n <= this->order; ++n) { 
@@ -283,15 +259,13 @@ double MultipoleExpansion<Vector, Source, 3>::evaluatePotential(
     return pot.real(); 
 }
 
-
-template<typename Vector, typename Source> 
-Vector MultipoleExpansion<Vector, Source, 3>::evaluateForcefield(
-        const Vector& eval_point) const { 
+Vector_<3> MultipoleExpansion<3>::evaluateForcefield(const Vector_<3>& eval_point) 
+        const { 
 
     const auto [r, theta, phi] = (eval_point - this->center).toSpherical().data(); 
 
     // Precomputed values of Y_l^m(theta, phi) and its derivativesj
-    const typename Super::YlmDerivTable ylm_table(this->order, theta, phi); 
+    const typename tables::YlmDerivTable ylm_table(this->order, theta, phi); 
 
     // Components of the gradient of the potential evaluated in spherical
     // coordinates (and w.r.t. the spherical coordinate basis) 

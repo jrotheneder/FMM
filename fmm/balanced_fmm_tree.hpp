@@ -27,8 +27,8 @@ protected:
     using AOT = AbstractOrthtree<Vector, d>;
     using AFMMT = AbstractFmmTree<d>;
     using BaseNode = typename AOT::BaseNode; 
-    using ME = MultipoleExpansion<Vector, PointSource, d>;
-    using LE = LocalExpansion<Vector, PointSource, d>;
+    using ME = MultipoleExpansion<d>;
+    using LE = LocalExpansion<d>;
 
     FmmNode* nodes;     
     FmmLeaf* leaves; 
@@ -60,11 +60,8 @@ private:
 template<std::size_t d>
 struct BalancedFmmTree<d>::FmmNode: BaseNode {
 
-    using ME = MultipoleExpansion<Vector, PointSource, d>;
-    using LE = LocalExpansion<Vector, PointSource, d>;
-
-    ME multipole_expansion; 
-    LE local_expansion;
+    MultipoleExpansion<d> multipole_expansion; 
+    LocalExpansion<d> local_expansion;
 
     std::vector<FmmNode*> interaction_list;
     std::vector<FmmNode*> near_neighbours;
@@ -83,7 +80,7 @@ struct BalancedFmmTree<d>::FmmLeaf: BalancedFmmTree<d>::FmmNode {
 
     using Super = BalancedFmmTree<d>::FmmNode;
 
-    std::vector<PointSource> * sources;
+    std::vector<PointSource>* sources;
 
     FmmLeaf() {};
     FmmLeaf(Vector center, double box_length, std::size_t depth, 

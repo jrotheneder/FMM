@@ -9,30 +9,26 @@
 
 namespace fmm {
 
-typedef std::complex<double> Complex; 
-
-template<typename Vector, typename Source, std::size_t d>
-struct LocalExpansion: SeriesExpansion<Vector, Source, d> {
-    static_assert(d==2 || d==3, 
-        "This implementation supports only 2 or 3 dimensions.\n"
-    ); 
-};
+template<std::size_t d>
+struct LocalExpansion: SeriesExpansion<d> {};
 
 
 /******************************************************************************/
 /*                      2D Local Expansion Implementation                     */
 /******************************************************************************/
-template<typename Vector, typename Source>
-struct LocalExpansion<Vector, Source, 2>: SeriesExpansion<Vector, Source, 2> {
+template<> struct LocalExpansion<2>: SeriesExpansion<2> {
 
-    using Super = SeriesExpansion<Vector, Source, 2>;
-    using ME = MultipoleExpansion<Vector, Source, 2>;
+    using Vector = Vector_<2>; 
+    using PointSource = PointSource_<2>;
+    using Super = SeriesExpansion<2>;
+
+    using ME = MultipoleExpansion<2>; 
     using LE = LocalExpansion;
 
     LocalExpansion(): Super() {} // Empty default constructor
     LocalExpansion(const Vector& center, std::size_t order): Super(center, order) {}
     LocalExpansion(const Vector& center, std::size_t order, 
-            std::vector<Source>& sources);
+            std::vector<PointSource>& sources);
     LocalExpansion(const Vector& center, std::vector<const ME*> expansions);
     LocalExpansion(const Vector& center, const ME& incoming);
     LocalExpansion(const Vector& center, const LE& incoming);
@@ -45,8 +41,7 @@ struct LocalExpansion<Vector, Source, 2>: SeriesExpansion<Vector, Source, 2> {
 
 };
 
-template<typename Vector, typename Source>
-LocalExpansion<Vector, Source, 2>::LocalExpansion(const Vector& center, 
+LocalExpansion<2>::LocalExpansion(const Vector_<2>& center, 
         const ME& incoming): Super(center, incoming.order) {
 
     assert(incoming.order > 0); 
@@ -54,14 +49,13 @@ LocalExpansion<Vector, Source, 2>::LocalExpansion(const Vector& center,
     this->coefficients = multipoleToLocal(incoming); 
 }
 
-template<typename Vector, typename Source> 
-LocalExpansion<Vector, Source, 2>::LocalExpansion(const Vector& center, 
-        std::size_t order, std::vector<Source>& sources): Super(center, order) {
+LocalExpansion<2>::LocalExpansion(const Vector_<2>& center, std::size_t order, 
+        std::vector<PointSource_<2>>& sources): Super(center, order) {
     
     // Compute series expansion coefficients a_0 through a_order: 
     for(std::size_t i = 0; i < sources.size(); ++i) {
 
-        Source& src = sources[i];
+        PointSource& src = sources[i];
 
         Complex z{src.position[0], src.position[1]};
         Complex z_rel = z - this->center; // Express z in box-local coordinates
@@ -76,8 +70,7 @@ LocalExpansion<Vector, Source, 2>::LocalExpansion(const Vector& center,
     }
 }
 
-template<typename Vector, typename Source>
-LocalExpansion<Vector, Source, 2>::LocalExpansion(const Vector& center, 
+LocalExpansion<2>::LocalExpansion(const Vector_<2>& center, 
         std::vector<const ME*> expansions): Super(center, expansions.at(0)->order) {
     
     for(const ME* me : expansions) { 
@@ -85,8 +78,7 @@ LocalExpansion<Vector, Source, 2>::LocalExpansion(const Vector& center,
     }
 }
 
-template<typename Vector, typename Source>
-LocalExpansion<Vector, Source, 2>::LocalExpansion(const Vector& center, 
+LocalExpansion<2>::LocalExpansion(const Vector_<2>& center, 
         const LocalExpansion& incoming): Super(center, incoming.order)  {
     
     assert(incoming.order > 0); 
@@ -96,30 +88,28 @@ LocalExpansion<Vector, Source, 2>::LocalExpansion(const Vector& center,
 
 }
 
-template<typename Vector, typename Source>
-std::vector<Complex> LocalExpansion<Vector, Source, 2>::multipoleToLocal(
+std::vector<Complex> LocalExpansion<2>::multipoleToLocal(
         const ME& incoming) const {
 
     Complex z0 = incoming.center - this->center; // ME center rel. to this->center
-
-    const typename Super::BinomialTable& binomial_table = Super::binomial_table; 
-    const typename Super::template PowTable<Complex> 
-        z0_inv_pow_table(1./z0, this->order);   
-    
     std::vector<Complex> coefficients(this->order + 1); 
 
+    const tables::BinomialTable& binomial_table = Super::binomial_table; 
+    const tables::PowTable<Complex> z0_inv_pow_table(1./z0, this->order);   
+    
+
     coefficients[0] = incoming(0) * std::log(-z0); 
-    for(unsigned k = 1; k <= this->order; ++k) {
+    for(int k = 1; k <= this->order; ++k) {
         double sign = k % 2 == 0 ? 1 : -1;  
         coefficients[0] += sign * incoming(k) * z0_inv_pow_table(k); // [(4.18), 1] 
     }
 
     // Compute b_l for 1 <= l <= order
-    for(unsigned l = 1; l <= this->order; ++l) {
+    for(int l = 1; l <= this->order; ++l) {
 
         Complex b_l = -incoming(0)/(double)l; 
 
-        for(unsigned k = 1; k < this->order; ++k) { 
+        for(int k = 1; k < this->order; ++k) { 
             double sign = k % 2 == 0 ? 1 : -1;  
             b_l += sign * incoming(k) * z0_inv_pow_table(k)   
                 * binomial_table(l+k-1, k-1); // [(4.19), 1]
@@ -133,15 +123,13 @@ std::vector<Complex> LocalExpansion<Vector, Source, 2>::multipoleToLocal(
 }
 
 // Shift is the vector (complex number) from the new center to the old
-// center.
-template<typename Vector, typename Source>
-std::vector<Complex> LocalExpansion<Vector, Source, 2>::shift(
-        const Complex shift) const { // [(4.21), 1], shift === z0
-
+// center. In [(4.21), 1], shift === z0.
+std::vector<Complex> LocalExpansion<2>::shift(const Complex shift) const { 
+    
     std::vector<Complex> shifted_coefficients{this->coefficients}; 
 
-    for(unsigned j = 0; j < this->order; ++j) {
-        for(unsigned k = this->order-j-1; k < this->order; ++k) {
+    for(int j = 0; j < this->order; ++j) {
+        for(int k = this->order-j-1; k < this->order; ++k) {
             shifted_coefficients[k] -= shift * shifted_coefficients[k+1];    
         }
     }
@@ -149,9 +137,7 @@ std::vector<Complex> LocalExpansion<Vector, Source, 2>::shift(
     return shifted_coefficients;
 }
 
-template<typename Vector, typename Source>
-double LocalExpansion<Vector, Source, 2>::evaluatePotential(
-        const Vector& eval_point) const {
+double LocalExpansion<2>::evaluatePotential(const Vector_<2>& eval_point) const {
 
     Complex z{eval_point[0], eval_point[1]}; // get complex repr.
     const Complex z_rel = z - this->center; 
@@ -166,13 +152,12 @@ double LocalExpansion<Vector, Source, 2>::evaluatePotential(
 
     // Return -result.real() for the electrostatic potential, 
     // +result.real() for the gravitational potential. 
-    return -result.real(); 
+    return result.real(); 
 } 
 
 
-template<typename Vector, typename Source>
-Vector LocalExpansion<Vector, Source, 2>::evaluateForcefield(
-        const Vector& eval_point) const { 
+Vector_<2> LocalExpansion<2>::evaluateForcefield(
+        const Vector_<2>& eval_point) const { 
 
     Complex z{eval_point[0], eval_point[1]}; // get complex repr.
     Complex z_rel = z - this->center; 
@@ -185,22 +170,25 @@ Vector LocalExpansion<Vector, Source, 2>::evaluateForcefield(
         z_rel_pow *= z_rel; 
     }
 
-    return {{result.real(), -result.imag()}}; 
+    // The gravitational field is given by {{-result.real(), result.imag()}}.
+    // For the electric field, return {{result.real(), -result.imag()}}.
+    return {{-result.real(), result.imag()}}; 
 }
 
 /******************************************************************************/
 /*                      3D Local Expansion Implementation                    */
 /******************************************************************************/
-template<typename Vector, typename Source>
-struct LocalExpansion<Vector, Source, 3>: SeriesExpansion<Vector, Source, 3> {
+template<> struct LocalExpansion<3>: SeriesExpansion<3> {
 
-    using Super = SeriesExpansion<Vector, Source, 3>;
-    using ME = MultipoleExpansion<Vector, Source, 3>;
-    using LE = LocalExpansion<Vector, Source, 3>;
+    using Vector = Vector_<3>; 
+    using PointSource = PointSource_<3>;
+    using Super = SeriesExpansion<3>;
+    using ME = MultipoleExpansion<3>;
+    using LE = LocalExpansion<3>;
 
     LocalExpansion() {} // Empty default constructor
     LocalExpansion(const Vector& center, std::size_t order);
-    LocalExpansion(const Vector& center, int order, std::vector<Source>& sources);
+    LocalExpansion(const Vector& center, int order, std::vector<PointSource>& sources);
     LocalExpansion(const Vector& center, std::vector<const ME*> expansions);
     LocalExpansion(const Vector& center, const ME& incoming);
     LocalExpansion(const Vector& center, const LE& incoming);
@@ -216,13 +204,11 @@ struct LocalExpansion<Vector, Source, 3>: SeriesExpansion<Vector, Source, 3> {
 };
 
 
-template<typename Vector, typename Source>
-LocalExpansion<Vector, Source, 3>::LocalExpansion(const Vector& center, 
+LocalExpansion<3>::LocalExpansion(const Vector_<3>& center, 
         std::size_t order): Super(center, order) {}
 
-template<typename Vector, typename Source> 
-LocalExpansion<Vector, Source, 3>::LocalExpansion(const Vector& center, 
-        int order, std::vector<Source>& sources): Super(center, order) {
+LocalExpansion<3>::LocalExpansion(const Vector_<3>& center, int order, 
+        std::vector<PointSource_<3>>& sources): Super(center, order) {
 
     LE& self = *this; 
 
@@ -232,7 +218,7 @@ LocalExpansion<Vector, Source, 3>::LocalExpansion(const Vector& center,
             = (sources[i].position - center).toSpherical().data(); 
 
         // Precomputed values of Y_l^m(theta, phi) 
-        const typename Super::YlmTable sphericalHarmonicY(this->order, theta, phi); 
+        const typename tables::YlmTable sphericalHarmonicY(this->order, theta, phi); 
 
         double r_pow_inv = 1/r; 
         for(int n = 0; n <= order; ++n) {  
@@ -246,29 +232,27 @@ LocalExpansion<Vector, Source, 3>::LocalExpansion(const Vector& center,
     }
 }
 
-template<typename Vector, typename Source>
-LocalExpansion<Vector, Source, 3>::LocalExpansion(const Vector& center, 
+LocalExpansion<3>::LocalExpansion(const Vector_<3>& center, 
         std::vector<const ME*> incoming): Super(center, incoming.at(0)->order) {
 
-        // Convert the supplied multipole expansions to a local expansion
-        for(const ME* me : incoming) {
-            *this += LocalExpansion(center, *me);
-        }
+    // Convert the supplied multipole expansions to a local expansion
+    for(const ME* me : incoming) {
+        *this += LocalExpansion(center, *me);
+    }
 }
 
-template<typename Vector, typename Source>
-LocalExpansion<Vector, Source, 3>::LocalExpansion(const Vector& center, 
-        const ME& incoming): Super(center, incoming.order) {
+LocalExpansion<3>::LocalExpansion(const Vector_<3>& center, const ME& incoming): 
+        Super(center, incoming.order) {
 
     LE& self = *this; 
     const auto [r, theta, phi]  
         = (incoming.center - this->center).toSpherical().data(); 
 
     // Precomputed values of Y_l^m(theta, phi), A_l^m, sign patterns & powers of  r
-    const typename Super::YlmTable sphericalHarmonicY(2 * this->order, theta, phi); 
-    typename Super::AlmTable& A = Super::alm_table;
-    typename Super::SignTable& sign2 = Super::sign_fun2_table;
-    typename SeriesExpansion<Vector, Source, 2>:: template PowTable<double> 
+    const tables::YlmTable sphericalHarmonicY(2 * this->order, theta, phi); 
+    tables::AlmTable& A = Super::alm_table;
+    tables::SignTable& sign2 = Super::sign_fun2_table;
+    tables::PowTable<double> 
         r_inv_pow_table(1/r, 2*this->order+1);
 
     for(int j = 0; j <= this->order; ++j) {
@@ -294,27 +278,21 @@ LocalExpansion<Vector, Source, 3>::LocalExpansion(const Vector& center,
     }
 }
 
-template<typename Vector, typename Source>
-LocalExpansion<Vector, Source, 3>::LocalExpansion(const Vector& center, 
-        const LE& incoming): Super(center, incoming.order) {
+LocalExpansion<3>::LocalExpansion(const Vector_<3>& center, const LE& incoming): 
+        Super(center, incoming.order) {
 
     Vector shift_vec = incoming.center - this->center; 
     this->coefficients = incoming.shift(shift_vec);
 }
 
-template<typename Vector, typename Source>
-LocalExpansion<Vector, Source, 3>& LocalExpansion<Vector, Source, 3>::
-        operator+=(const LocalExpansion& rhs) {
+LocalExpansion<3>& LocalExpansion<3>::operator+=(const LocalExpansion& rhs) {
 
     Super::operator+=(rhs); 
-
     return *this;
 }
 
 // Shift is the vector from the new center to the old center.
-template<typename Vector, typename Source>
-std::vector<Complex> LocalExpansion<Vector, Source, 3>::shift(
-        const Vector& shift) const {
+std::vector<Complex> LocalExpansion<3>::shift(const Vector_<3>& shift) const {
 
     std::vector<Complex> shifted_coefficients(this->coefficients.size()); 
     const LE& outgoing = *this; // outgoing expansion
@@ -322,11 +300,10 @@ std::vector<Complex> LocalExpansion<Vector, Source, 3>::shift(
     const auto [r, theta, phi] = shift.toSpherical().data(); 
 
     // Precomputed values of Y_l^m(theta, phi), A_l^m, sign patterns & powers of r
-    const typename Super::YlmTable sphericalHarmonicY(2 * this->order, theta, phi); 
-    typename Super::AlmTable& A = Super::alm_table;
-    typename Super::SignTable& sign3 = Super::sign_fun3_table;
-    typename SeriesExpansion<Vector, Source, 2>:: template PowTable<double> 
-        r_pow_table(r, this->order);
+    const typename tables::YlmTable sphericalHarmonicY(2 * this->order, theta, phi); 
+    typename tables::AlmTable& A = Super::alm_table;
+    typename tables::SignTable& sign3 = Super::sign_fun3_table;
+    typename tables::PowTable<double> r_pow_table(r, this->order);
 
     unsigned coeff_index = 0; // index of next coefficient to be computed
     for(int j = 0; j <= this->order; ++j) {  
@@ -355,13 +332,11 @@ std::vector<Complex> LocalExpansion<Vector, Source, 3>::shift(
     return shifted_coefficients;
 }
 
-template<typename Vector, typename Source>
-double LocalExpansion<Vector, Source, 3>::evaluatePotential(
-        const Vector& eval_point) const {
+double LocalExpansion<3>::evaluatePotential(const Vector_<3>& eval_point) const {
  
     const LE& self = *this; 
     const auto [r, theta, phi] = (eval_point - self.center).toSpherical().data(); 
-    const typename Super::YlmTable sphericalHarmonicY(self.order, theta, phi); 
+    const typename tables::YlmTable sphericalHarmonicY(self.order, theta, phi); 
 
     Complex pot = 0; 
 
@@ -376,14 +351,12 @@ double LocalExpansion<Vector, Source, 3>::evaluatePotential(
     return pot.real(); 
 }
 
-template<typename Vector, typename Source>
-Vector LocalExpansion<Vector, Source, 3>::evaluateForcefield(
-        const Vector& eval_point) const { 
+Vector_<3> LocalExpansion<3>::evaluateForcefield(const Vector_<3>& eval_point) const { 
 
     const auto [r, theta, phi] = (eval_point - this->center).toSpherical().data(); 
 
     // Precomputed values of Y_l^m(theta, phi) and its derivativesj
-    const typename Super::YlmDerivTable ylm_table(this->order, theta, phi); 
+    const typename tables::YlmDerivTable ylm_table(this->order, theta, phi); 
 
     // Components of the gradient of the potential evaluated in spherical
     // coordinates (and w.r.t. the spherical coordinate basis) 
