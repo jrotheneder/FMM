@@ -6,15 +6,12 @@
 
 #include "adaptive_orthtree.hpp"
 #include "abstract_fmm_tree.hpp"
-#include "multipole_expansion.hpp"
-#include "local_expansion.hpp"
-#include "direct.hpp"
 
 namespace fmm {
 
-template<std::size_t d>
+template<std::size_t d, bool field_type = true> // true => Grav., false => Coulomb
 class AdaptiveFmmTree: public AdaptiveOrthtree<Vector_<d>, d>, 
-    public AbstractFmmTree<d> {
+    public AbstractFmmTree<d, field_type> {
 
 protected:
 
@@ -26,7 +23,7 @@ protected:
 
     using AOT = AbstractOrthtree<Vector, d>;
     using ADOT = AdaptiveOrthtree<Vector, d>;
-    using AFMMT = AbstractFmmTree<d>;
+    using AFMMT = AbstractFmmTree<d, field_type>;
     using BaseNode = typename AOT::BaseNode; 
     using ME = MultipoleExpansion<d>;
     using LE = LocalExpansion<d>;
@@ -62,13 +59,13 @@ private:
 
 };
 
-template<std::size_t d>
-struct AdaptiveFmmTree<d>::FmmNode: BaseNode {
+template<std::size_t d, bool field_type>
+struct AdaptiveFmmTree<d, field_type>::FmmNode: BaseNode {
 
     MultipoleExpansion<d> multipole_expansion; 
     LocalExpansion<d> local_expansion;
 
-    std::vector<FmmNode*> near_neighbours;  // list U for leaves, cont .all NNs for nodes
+    std::vector<FmmNode*> near_neighbours;  // list U for leaves, all NNs for nodes
     std::vector<FmmNode*> interaction_list; // list V (see docs)
     std::vector<FmmLeaf*> X_list;           // list X (see docs)
 
@@ -83,11 +80,11 @@ struct AdaptiveFmmTree<d>::FmmNode: BaseNode {
     virtual ~FmmNode() { for(auto child : this->children) { delete child; } }
 };
 
-template<std::size_t d>
-struct AdaptiveFmmTree<d>::FmmLeaf: 
-        AdaptiveFmmTree<d>::FmmNode {
+template<std::size_t d, bool field_type>
+struct AdaptiveFmmTree<d, field_type>::FmmLeaf: 
+        AdaptiveFmmTree<d, field_type>::FmmNode {
 
-    using Super = AdaptiveFmmTree<d>::FmmNode;
+    using Super = AdaptiveFmmTree<d, field_type>::FmmNode;
 
     std::vector<FmmNode*> W_list; // list W (see docs)
     std::vector<PointSource> sources;
@@ -107,17 +104,18 @@ struct AdaptiveFmmTree<d>::FmmLeaf:
     virtual ~FmmLeaf() {}
 };
 
-template<std::size_t d>
-AdaptiveFmmTree<d>::AdaptiveFmmTree(std::vector<PointSource>& sources, 
+template<std::size_t d, bool field_type>
+AdaptiveFmmTree<d, field_type>::AdaptiveFmmTree(std::vector<PointSource>& sources, 
         std::size_t max_sources_per_leaf, double eps, double force_smoothing_eps): 
         AdaptiveOrthtree<Vector, d>(), 
-        AbstractFmmTree<d>(sources, force_smoothing_eps) { 
+        AbstractFmmTree<d, field_type>(sources, force_smoothing_eps) { 
 
     // Determine expansion order, tree height, numbers of nodes and leaves
     this->order = (ceil(log(1/eps) / log(2))); 
 
     // Determine bounding box lenghts and center 
-    auto [lower_bounds, upper_bounds] = AbstractFmmTree<d>::getDataRange(); 
+    auto [lower_bounds, upper_bounds] 
+        = AbstractFmmTree<d, field_type>::getDataRange(); 
     auto extents = (upper_bounds - lower_bounds).data(); 
     double box_length = *std::max_element(extents.begin(), extents.end());
     Vector center = 0.5 * (lower_bounds + upper_bounds); 
@@ -222,8 +220,9 @@ AdaptiveFmmTree<d>::AdaptiveFmmTree(std::vector<PointSource>& sources,
     }
 }
 
-template<std::size_t d>
-double AdaptiveFmmTree<d>::evaluatePotential(const Vector& eval_point) const {
+template<std::size_t d, bool field_type>
+double AdaptiveFmmTree<d, field_type>::evaluatePotential(const Vector& eval_point) 
+        const {
 
     FmmLeaf& containing_leaf = getContainingLeaf(eval_point);  
     
@@ -240,25 +239,35 @@ double AdaptiveFmmTree<d>::evaluatePotential(const Vector& eval_point) const {
     // Contributions from sources in near neighbour leaves (eval. directly).
     // The list of NNs includes the containing_leaf; this one is handled
     // separately with a potential which checks whether eval_point coincides
-    // with a source location (in which case an exception is thrown)
+    // with a source location, in which case that source is ignored 
     
+    // use the grav. field here, optionally convert to Coulomb at return
+    const bool grav = 1; 
+    const bool safe = 1;
+
     for(auto leaf : containing_leaf.near_neighbours) {
         if(leaf != &containing_leaf) {
-            pot += AFMMT::evalScalarInteraction(static_cast<FmmLeaf*>(leaf)->sources, 
-                eval_point, this->force_smoothing_eps, AFMMT::potentialFunction);
+            pot += fields::potential<d, grav, !safe>(
+                static_cast<FmmLeaf*>(leaf)->sources, 
+                eval_point, this->force_smoothing_eps);
         }
         else {
-            pot += AFMMT::evalScalarInteraction(containing_leaf.sources, 
-                eval_point, this->force_smoothing_eps, AFMMT::safePotentialFunction);
+            pot += fields::potential<d, grav, safe>(
+                static_cast<FmmLeaf*>(leaf)->sources, 
+                eval_point, this->force_smoothing_eps);
         }
     }
     
+    if constexpr(field_type == 0) { // Coulomb field => switch signs
+        pot = -pot; 
+    }
+
     return pot; 
 }
 
-template<std::size_t d>
-Vector_<d> AdaptiveFmmTree<d>::evaluateForcefield(const Vector_<d>& eval_point) 
-        const {
+template<std::size_t d, bool field_type>
+Vector_<d> AdaptiveFmmTree<d, field_type>::evaluateForcefield(
+        const Vector_<d>& eval_point) const {
 
     FmmLeaf& containing_leaf = getContainingLeaf(eval_point);  
 
@@ -273,24 +282,34 @@ Vector_<d> AdaptiveFmmTree<d>::evaluateForcefield(const Vector_<d>& eval_point)
     // Contributions from sources in near neighbour leaves (eval. directly).
     // The list of NNs includes the containing_leaf; this one is handled
     // separately with a force which checks whether eval_point coincides
-    // with a source location (in which case an exception is thrown) 
+    // with a source location, in which case that source is ignored 
+
+    // use the grav. field here, optionally convert to Coulomb at return
+    const bool grav = 1; 
+    const bool safe = 1;
+
     for(auto leaf : containing_leaf.near_neighbours) {
         if(leaf != &containing_leaf) {
-            force_vec += AFMMT::evalVectorInteraction(
-                static_cast<FmmLeaf*>(leaf)->sources, eval_point, 
-                this->force_smoothing_eps, AFMMT::forceFunction);
+            force_vec += fields::forcefield<d, grav, !safe>(
+                static_cast<FmmLeaf*>(leaf)->sources, 
+                eval_point, this->force_smoothing_eps);
         }
         else {
-            force_vec += AFMMT::evalVectorInteraction(containing_leaf.sources, 
-                    eval_point, this->force_smoothing_eps, AFMMT::safeForceFunction);
+            force_vec += fields::forcefield<d, grav, safe>(
+                static_cast<FmmLeaf*>(leaf)->sources, 
+                eval_point, this->force_smoothing_eps);
         }
+    }
+
+    if constexpr(field_type == 0) { // Coulomb field => switch signs
+        force_vec = -force_vec; 
     }
 
     return force_vec;
 }
 
-template<std::size_t d> 
-void AdaptiveFmmTree<d>::toFile() {
+template<std::size_t d, bool field_type> 
+void AdaptiveFmmTree<d, field_type>::toFile() {
 
     namespace fs =  std::filesystem;
     std::string logs_dir = "./logs"; 
@@ -390,9 +409,9 @@ void AdaptiveFmmTree<d>::toFile() {
     }); 
 }
 
-template<std::size_t d>
+template<std::size_t d, bool field_type>
 std::array<std::vector<PointSource_<d>>, AbstractOrthtree<Vector_<d>, d>::
-        n_children> AdaptiveFmmTree<d>::refineOrthant(const Vector_<d>& 
+        n_children> AdaptiveFmmTree<d, field_type>::refineOrthant(const Vector_<d>& 
         center, const std::vector<PointSource_<d>>& sources) {
 
     std::array<std::vector<PointSource>, AOT::n_children> child_sources; 
@@ -405,8 +424,8 @@ std::array<std::vector<PointSource_<d>>, AbstractOrthtree<Vector_<d>, d>::
     return child_sources; 
 }
 
-template<std::size_t d>
-void AdaptiveFmmTree<d>::buildTree(FmmNode* node, 
+template<std::size_t d, bool field_type>
+void AdaptiveFmmTree<d, field_type>::buildTree(FmmNode* node, 
         std::vector<PointSource_<d>>& sources, std::size_t max_items_per_leaf) {
 
     unsigned depth = 0; 
@@ -478,8 +497,8 @@ void AdaptiveFmmTree<d>::buildTree(FmmNode* node,
 
 // Computes near neighbour list and interaction list of a node, assuming that 
 // these lists have already been computed for the parent node.
-template<std::size_t d>
-void AdaptiveFmmTree<d>::computeNodeNeighbourhood(FmmNode* node) {
+template<std::size_t d, bool field_type>
+void AdaptiveFmmTree<d, field_type>::computeNodeNeighbourhood(FmmNode* node) {
 
     FmmNode* parent = static_cast<FmmNode*>(node->parent);
     Vector& center = node->center;
@@ -538,24 +557,24 @@ void AdaptiveFmmTree<d>::computeNodeNeighbourhood(FmmNode* node) {
     }
 } 
 
-template<std::size_t d>
-void AdaptiveFmmTree<d>::sourceToLocal(FmmNode& node) {
+template<std::size_t d, bool field_type>
+void AdaptiveFmmTree<d, field_type>::sourceToLocal(FmmNode& node) {
 
     for(FmmLeaf* leaf : node.X_list) {
         node.local_expansion += LE(node.center, this->order, leaf->sources);          
     }
 }
 
-template<std::size_t d>
-void AdaptiveFmmTree<d>::constructLocalExpansion(FmmNode& node) {
+template<std::size_t d, bool field_type>
+void AdaptiveFmmTree<d, field_type>::constructLocalExpansion(FmmNode& node) {
 
     this->localToLocal(node);
     this->multipoleToLocal(node);
     this->sourceToLocal(node); 
 }
 
-template<std::size_t d>
-typename AdaptiveFmmTree<d>::FmmLeaf& AdaptiveFmmTree<d>::
+template<std::size_t d, bool field_type>
+typename AdaptiveFmmTree<d, field_type>::FmmLeaf& AdaptiveFmmTree<d, field_type>::
         getContainingLeaf(const Vector& point) const {
 
     FmmNode* current = static_cast<FmmNode*>(this->root); 

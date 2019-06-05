@@ -108,7 +108,9 @@ double MultipoleExpansion<2>::evaluatePotential(const Vector_<2>& eval_point) co
         z_rel_inv_pow /= z_rel; 
     }
 
-    return -result.real(); 
+    // Return -result.real() for the electrostatic potential, 
+    // +result.real() for the gravitational potential. 
+    return result.real(); 
 } 
 
 Vector_<2> MultipoleExpansion<2>::evaluateForcefield(const Vector_<2>& eval_point) 
@@ -128,7 +130,7 @@ Vector_<2> MultipoleExpansion<2>::evaluateForcefield(const Vector_<2>& eval_poin
 
     // The gravitational field is given by {{-result.real(), result.imag()}}.
     // For the electric field, return {{result.real(), -result.imag()}}.
-    return {{-result.real(), +result.imag()}}; 
+    return {{-result.real(), result.imag()}}; 
 }
 
 /******************************************************************************/
@@ -256,6 +258,9 @@ double MultipoleExpansion<3>::evaluatePotential(const Vector_<3>& eval_point) co
         r_pow /= r; 
     }
 
+    // +pot.real() for the gravitational potential, 
+    // -pot.real() for the electrostatic potential
+    // n.b. this distinction is handled within the FmmTree classes
     return pot.real(); 
 }
 
@@ -289,7 +294,10 @@ Vector_<3> MultipoleExpansion<3>::evaluateForcefield(const Vector_<3>& eval_poin
         r_pow /= r; 
     }
 
-    return -Vector{{force_r, force_theta, force_phi}}.toCartesianBasis(theta, phi); 
+    // +Vector{{force_r, force_theta, force_phi}} for the gravitational field, 
+    // -Vector{{force_r, force_theta, force_phi}} for the electrostatic field
+    // n.b. this distinction is handled within the FmmTree classes
+    return Vector{{force_r, force_theta, force_phi}}.toCartesianBasis(theta, phi); 
 }
 
 } // namespace fmm

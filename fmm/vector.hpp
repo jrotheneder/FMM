@@ -54,7 +54,8 @@ struct Vector_ {
     void fill(double val) { coords.fill(val); }
 
     double dot(const Vector_& rhs) const {
-        return std::inner_product(coords.begin(), coords.end(), rhs.data().begin(), 0.); 
+        return std::inner_product(coords.begin(), coords.end(), 
+                rhs.data().begin(), 0.); 
     }
 
     double norm() const { 
@@ -68,8 +69,24 @@ struct Vector_ {
             return std::hypot(coords[0], coords[1], coords[2]);
         }
 
-        return sqrt(this->dot(*this)); 
+        return std::sqrt(this->dot(*this)); 
     } 
+
+    double norm_sq() const {
+        if constexpr(d == 1) {
+            return coords[0] * coords[0]; 
+        }
+        else if(d==2) {
+            return coords[0] * coords[0] + coords[1] * coords[1]; 
+        }
+        else if(d == 3)  {
+            return coords[0] * coords[0] 
+                + coords[1] * coords[1]
+                + coords[2] * coords[3]; 
+        }
+
+        return this->dot(*this); 
+    }
 
     // Returns vector of  (r, φ) of polar coordinates from vector (x, y) of
     // cartesian coordinates if d == 2, vector of (r, θ, φ) spherical 
@@ -166,8 +183,10 @@ struct PointSource_ {
     Vector_<d> position; 
     double q; 
 
-    PointSource_(Vector_<d> position = {}, double q = 0): position(position), q(q) {}
-    PointSource_(std::array<double, d> position, double q): position(position), q(q) {}
+    PointSource_(Vector_<d> position = {}, double q = 0): 
+        position(position), q(q) {}
+    PointSource_(std::array<double, d> position, double q): 
+        position(position), q(q) {}
 
     double& operator[](std::size_t index) { return position[index]; }
     const double& operator[](std::size_t index) const { return position[index]; }

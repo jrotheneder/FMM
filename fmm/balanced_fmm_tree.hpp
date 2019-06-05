@@ -6,15 +6,12 @@
 
 #include "balanced_orthtree.hpp"
 #include "abstract_fmm_tree.hpp"
-#include "multipole_expansion.hpp"
-#include "local_expansion.hpp"
-#include "direct.hpp"
 
 namespace fmm {
 
-template<std::size_t d>
+template<std::size_t d, bool field_type = true> // true => Grav., false => Coulomb
 class BalancedFmmTree: public BalancedOrthtree<Vector_<d>, d>, 
-    public AbstractFmmTree<d> {
+    public AbstractFmmTree<d, field_type> {
 
 protected:
 
@@ -25,7 +22,6 @@ protected:
     using PointSource = PointSource_<d>;
 
     using AOT = AbstractOrthtree<Vector, d>;
-    using AFMMT = AbstractFmmTree<d>;
     using BaseNode = typename AOT::BaseNode; 
     using ME = MultipoleExpansion<d>;
     using LE = LocalExpansion<d>;
@@ -57,8 +53,8 @@ private:
     void computeNodeNeighbourhood(FmmNode* node); 
 };
 
-template<std::size_t d>
-struct BalancedFmmTree<d>::FmmNode: BaseNode {
+template<std::size_t d, bool field_type>
+struct BalancedFmmTree<d, field_type>::FmmNode: BaseNode {
 
     MultipoleExpansion<d> multipole_expansion; 
     LocalExpansion<d> local_expansion;
@@ -75,10 +71,11 @@ struct BalancedFmmTree<d>::FmmNode: BaseNode {
     virtual ~FmmNode() {};
 };
 
-template<std::size_t d>
-struct BalancedFmmTree<d>::FmmLeaf: BalancedFmmTree<d>::FmmNode {
+template<std::size_t d, bool field_type>
+struct BalancedFmmTree<d, field_type>::FmmLeaf: 
+        BalancedFmmTree<d, field_type>::FmmNode {
 
-    using Super = BalancedFmmTree<d>::FmmNode;
+    using Super = BalancedFmmTree<d, field_type>::FmmNode;
 
     std::vector<PointSource>* sources;
 
@@ -90,22 +87,23 @@ struct BalancedFmmTree<d>::FmmLeaf: BalancedFmmTree<d>::FmmNode {
     virtual ~FmmLeaf() { delete sources; }
 };
 
-template<std::size_t d>
-BalancedFmmTree<d>::BalancedFmmTree(std::vector<PointSource>& sources, 
-        std::size_t sources_per_cell, double eps, double force_smoothing_eps): 
-        BalancedOrthtree<Vector, d>(), 
-        AbstractFmmTree<d>(sources, force_smoothing_eps) { 
+template<std::size_t d, bool field_type>
+BalancedFmmTree<d, field_type>::BalancedFmmTree(
+        std::vector<PointSource_<d>>& sources, std::size_t sources_per_cell, 
+        double eps, double force_smoothing_eps): BalancedOrthtree<Vector, d>(), 
+        AbstractFmmTree<d, field_type>(sources, force_smoothing_eps) { 
 
     // Determine expansion order, tree height, numbers of nodes and leaves
     this->order = (ceil(log(1/eps) / log(2))), 
     this->height = ceil(log((double)sources.size()/sources_per_cell) 
         / log(AOT::n_children));
 
-    n_nodes  = pow(AOT::n_children, this->height) / (AOT::n_children - 1);
-    n_leaves = pow(AOT::n_children, this->height);
+    n_nodes  = std::pow(AOT::n_children, this->height) / (AOT::n_children - 1);
+    n_leaves = std::pow(AOT::n_children, this->height);
 
     // Determine bounding box lenghts and center 
-    auto [lower_bounds, upper_bounds] = AbstractFmmTree<d>::getDataRange(); 
+    auto [lower_bounds, upper_bounds] 
+        = AbstractFmmTree<d, field_type>::getDataRange(); 
     auto extents = (upper_bounds - lower_bounds).data(); 
     double box_length = *std::max_element(extents.begin(), extents.end());
     Vector center = 0.5 * (lower_bounds + upper_bounds); 
@@ -148,7 +146,6 @@ BalancedFmmTree<d>::BalancedFmmTree(std::vector<PointSource>& sources,
     ); 
 
     // Upward pass: Form expansions at leaves and shift to parents
-
     #pragma omp parallel for
     for(std::size_t i = 0; i < n_leaves; ++i) { 
 
@@ -191,14 +188,8 @@ BalancedFmmTree<d>::BalancedFmmTree(std::vector<PointSource>& sources,
 
             FmmNode& current_node = nodes[offset + i]; 
 
-            //auto t1 = std::chrono::high_resolution_clock::now();
-
             this->localToLocal(current_node);
             this->multipoleToLocal(current_node);
-
-            //auto t2 = std::chrono::high_resolution_clock::now();
-            //std::cout << offset + i << "\t" <<  chrono_duration(t2-t1)  << "\n";
-
         }
     }
 
@@ -207,19 +198,13 @@ BalancedFmmTree<d>::BalancedFmmTree(std::vector<PointSource>& sources,
 
         FmmNode& current_node = leaves[leaf_index]; 
 
-//      auto t1 = std::chrono::high_resolution_clock::now();
-
         this->localToLocal(current_node);
         this->multipoleToLocal(current_node);
-
-//      auto t2 = std::chrono::high_resolution_clock::now();
-//      std::cout << leaf_index << "\t" <<  chrono_duration(t2-t1)  << "\n";
     }
 }
 
-template<std::size_t d>
-double BalancedFmmTree<d>::
-        evaluatePotential(const Vector& eval_point) const {
+template<std::size_t d, bool field_type>
+double BalancedFmmTree<d, field_type>::evaluatePotential(const Vector& eval_point) const {
 
     uint64_t leaf_index = this->getMortonIndex(this->getLeafBoxIndices(eval_point)); 
     FmmLeaf& containing_leaf = leaves[leaf_index];  
@@ -231,22 +216,33 @@ double BalancedFmmTree<d>::
     // The list of NNs includes the containing_leaf; this one is handled
     // separately with a potential which checks whether eval_point coincides
     // with a source location (in which case an exception is thrown)
+    
+    // use the grav. field here, optionally convert to Coulomb at return
+    const bool grav = 1; 
+    const bool safe = 1;
+
     for(auto leaf : containing_leaf.near_neighbours) {
         if(leaf != &containing_leaf) {
-            pot += AFMMT::evalScalarInteraction(*(static_cast<FmmLeaf*>(leaf)->sources), 
-                eval_point, this->force_smoothing_eps, AFMMT::potentialFunction);
+            pot += fields::potential<d, grav, !safe>(
+                *static_cast<FmmLeaf*>(leaf)->sources, 
+                eval_point, this->force_smoothing_eps);
         }
         else {
-            pot += AFMMT::evalScalarInteraction(*containing_leaf.sources, 
-                eval_point, this->force_smoothing_eps, AFMMT::safePotentialFunction);
+            pot += fields::potential<d, grav, safe>(
+                *static_cast<FmmLeaf*>(leaf)->sources, 
+                eval_point, this->force_smoothing_eps);
         }
     }
     
+    if constexpr(field_type == 0) { // Coulomb field => switch signs
+        pot = -pot; 
+    }
+
     return pot; 
 }
 
-template<std::size_t d>
-Vector_<d> BalancedFmmTree<d>::evaluateForcefield(const Vector_<d>& eval_point) 
+template<std::size_t d, bool field_type>
+Vector_<d> BalancedFmmTree<d, field_type>::evaluateForcefield(const Vector_<d>& eval_point) 
         const {
 
     uint64_t leaf_index = this->getMortonIndex(this->getLeafBoxIndices(eval_point)); 
@@ -259,23 +255,33 @@ Vector_<d> BalancedFmmTree<d>::evaluateForcefield(const Vector_<d>& eval_point)
     // The list of NNs includes the containing_leaf; this one is handled
     // separately with a force which checks whether eval_point coincides
     // with a source location (in which case an exception is thrown) 
+
+    // use the grav. field here, optionally convert to Coulomb at return
+    const bool grav = 1; 
+    const bool safe = 1;
+
     for(auto leaf : containing_leaf.near_neighbours) {
         if(leaf != &containing_leaf) {
-            force_vec += AFMMT::evalVectorInteraction(
-                *(static_cast<FmmLeaf*>(leaf)->sources), eval_point, 
-                this->force_smoothing_eps, AFMMT::forceFunction);
+            force_vec += fields::forcefield<d, grav, !safe>(
+                *static_cast<FmmLeaf*>(leaf)->sources, 
+                eval_point, this->force_smoothing_eps);
         }
         else {
-            force_vec += AFMMT::evalVectorInteraction(*containing_leaf.sources, 
-                eval_point, this->force_smoothing_eps, AFMMT::safeForceFunction);
+            force_vec += fields::forcefield<d, grav, safe>(
+                *static_cast<FmmLeaf*>(leaf)->sources, 
+                eval_point, this->force_smoothing_eps);
         }
+    }
+
+    if constexpr(field_type == 0) { // Coulomb field => switch signs
+        force_vec = -force_vec; 
     }
 
     return force_vec;
 }
 
-template<std::size_t d>
-void BalancedFmmTree<d>::toFile() {
+template<std::size_t d, bool field_type>
+void BalancedFmmTree<d, field_type>::toFile() {
 
     namespace fs =  std::filesystem;
     std::string logs_dir = "./logs"; 
@@ -354,8 +360,8 @@ void BalancedFmmTree<d>::toFile() {
 
 // Computes near neighbour list and interaction list of a node, assuming that 
 // these lists have already been computed for the parent node.
-template<std::size_t d>
-void BalancedFmmTree<d>::computeNodeNeighbourhood(FmmNode* node) {
+template<std::size_t d, bool field_type>
+void BalancedFmmTree<d, field_type>::computeNodeNeighbourhood(FmmNode* node) {
 
     auto& interaction_list = node->interaction_list;
     auto& near_neighbours = node->near_neighbours;
@@ -375,33 +381,27 @@ void BalancedFmmTree<d>::computeNodeNeighbourhood(FmmNode* node) {
 
     for(auto parent_nn : parent->near_neighbours) {
         for(auto child : parent_nn->children) {
-            double distance = (center - child->center).norm();  
+
             FmmNode* child_ptr = static_cast<FmmNode*>(child);
             if(node->adjacent(child_ptr)) { // child is near neighbour
-            //if(distance < this->max_neighbour_distance * node->box_length) {
-            //child is near neighbour
                 near_neighbours.push_back(child_ptr);  
             }
             else {
                 interaction_list.push_back(child_ptr); 
 
+                // Sanity check: 
+                double distance = (center - child->center).norm();  
                 if(distance < 1.99 * node->box_length) {
-//                  std::cerr << "Distance is " << distance 
-//                      << ", vs 1.99 * node->box_length = " 
-//                      << 1.99 * node->box_length << "\n";
-//                  std::cerr << "Depth is " << node->depth << "\n";
-//                  std::cerr << node->center << "\t" << node->box_length << "\n";
-//                  std::cerr << child->center << "\t" << child->box_length << "\n";
                     throw std::logic_error("Node too close to be part of the "
-                            "interaction list.");
+                        "interaction list.");
                 } 
             }
         }
     }
 } 
 
-template<std::size_t d>
-void BalancedFmmTree<d>::expandNode(FmmNode* node, 
+template<std::size_t d, bool field_type>
+void BalancedFmmTree<d, field_type>::expandNode(FmmNode* node, 
         std::size_t& node_offset, std::size_t& leaf_offset) {
 
     Vector parent_center = node->center;
@@ -437,10 +437,11 @@ void BalancedFmmTree<d>::expandNode(FmmNode* node,
     }
 }
 
-template<std::size_t d>
-void BalancedFmmTree<d>::distributePointSources() {
+template<std::size_t d, bool field_type>
+void BalancedFmmTree<d, field_type>::distributePointSources() {
      
-    std::vector<PointSource> ** leaf_source_vectors = new std::vector<PointSource>*[n_leaves];
+    std::vector<PointSource> ** leaf_source_vectors 
+        = new std::vector<PointSource>*[n_leaves];
     for(std::size_t i = 0; i < n_leaves; i++) {
         leaf_source_vectors[i] = new std::vector<PointSource>;
     }
@@ -450,7 +451,8 @@ void BalancedFmmTree<d>::distributePointSources() {
     for(std::size_t k = 0; k < this->sources.size(); k++) {
         auto indices = BalancedOrthtree<Vector, d>::getLeafBoxIndices(
             this->sources[k].position);
-        leaf_source_vectors[this->getFlatIndex(indices)]->push_back(this->sources[k]);
+        std::size_t flat_index = this->getFlatIndex(indices); 
+        leaf_source_vectors[flat_index]->push_back(this->sources[k]);
     }
 
     // Assign the 'buckets' of source to their respective leaves.     

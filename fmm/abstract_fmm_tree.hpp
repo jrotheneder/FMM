@@ -4,11 +4,11 @@
 #include "vector.hpp"
 #include "multipole_expansion.hpp"
 #include "local_expansion.hpp"
-#include "direct.hpp"
+#include "fields.hpp"
 
 namespace fmm {
 
-template<std::size_t d>
+template<std::size_t d, bool field_type> // true => Grav., false => Coulomb
 class AbstractFmmTree {
 
 protected:
@@ -18,24 +18,6 @@ protected:
 
     using ME = MultipoleExpansion<d>;
     using LE = LocalExpansion<d>;
-
-
-    static constexpr auto evalScalarInteraction 
-        = evaluateInteraction<Vector, PointSource, double>;
-    static constexpr auto evalVectorInteraction 
-        = evaluateInteraction<Vector, PointSource, Vector>;
-
-    static constexpr auto potentialFunction
-        = fields::gravitationalPotential<Vector, PointSource, d>;
-    static constexpr auto safePotentialFunction
-        = fields::safeGravitationalPotential<Vector, PointSource, d>;
-    static constexpr auto forceFunction
-        = fields::gravitationalForce<Vector, PointSource, d>;
-    static constexpr auto safeForceFunction
-        = fields::safeGravitationalForce<Vector, PointSource, d>;
-
-    const double max_neighbour_distance = 1.1 * sqrt(d); 
-    //in units of box_length + padding to avoid numerical issues
 
     const std::vector<PointSource>& sources;
     std::size_t order;
@@ -65,8 +47,9 @@ protected:
     template<typename FmmNode> void multipoleToLocal(FmmNode& node);
 };
 
-template<std::size_t d>
-std::vector<double> AbstractFmmTree<d>::evaluateParticlePotentialEnergies() const {
+template<std::size_t d, bool field_type>
+std::vector<double> AbstractFmmTree<d, field_type>::evaluateParticlePotentialEnergies() 
+        const {
 
     std::vector<double> potentials(sources.size()); 
     #pragma omp parallel for
@@ -78,8 +61,9 @@ std::vector<double> AbstractFmmTree<d>::evaluateParticlePotentialEnergies() cons
     return potentials; 
 }
 
-template<std::size_t d>
-std::vector<Vector_<d>> AbstractFmmTree<d>::evaluateParticleForces() const {
+template<std::size_t d, bool field_type>
+std::vector<Vector_<d>> AbstractFmmTree<d, field_type>::evaluateParticleForces() 
+        const {
 
     std::vector<Vector> forces(sources.size()); 
     #pragma omp parallel for 
@@ -91,8 +75,8 @@ std::vector<Vector_<d>> AbstractFmmTree<d>::evaluateParticleForces() const {
     return forces; 
 }
 
-template<std::size_t d>
-std::tuple<Vector_<d>, Vector_<d>> AbstractFmmTree<d>::getDataRange() const {
+template<std::size_t d, bool field_type>
+std::tuple<Vector_<d>, Vector_<d>> AbstractFmmTree<d, field_type>::getDataRange() const {
 
     Vector lower_bounds, upper_bounds; 
     lower_bounds.fill(HUGE_VAL);
@@ -115,9 +99,9 @@ std::tuple<Vector_<d>, Vector_<d>> AbstractFmmTree<d>::getDataRange() const {
     return std::make_tuple(lower_bounds, upper_bounds);
 }
 
-template<std::size_t d>
+template<std::size_t d, bool field_type>
 template<typename FmmNode>
-void AbstractFmmTree<d>::localToLocal(FmmNode& node) {
+void AbstractFmmTree<d, field_type>::localToLocal(FmmNode& node) {
  
     FmmNode * parent = static_cast<FmmNode*>(node.parent);
 
@@ -128,9 +112,9 @@ void AbstractFmmTree<d>::localToLocal(FmmNode& node) {
 }
 
 
-template<std::size_t d>
+template<std::size_t d, bool field_type>
 template<typename FmmNode>
-void AbstractFmmTree<d>::multipoleToLocal(FmmNode& node) {
+void AbstractFmmTree<d, field_type>::multipoleToLocal(FmmNode& node) {
  
     std::vector<const ME*> incoming; 
     for(FmmNode* interaction_partner : node.interaction_list) {

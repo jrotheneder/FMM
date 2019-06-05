@@ -52,7 +52,8 @@ LocalExpansion<2>::LocalExpansion(const Vector_<2>& center,
 LocalExpansion<2>::LocalExpansion(const Vector_<2>& center, std::size_t order, 
         std::vector<PointSource_<2>>& sources): Super(center, order) {
     
-    // Compute series expansion coefficients a_0 through a_order: 
+    // Compute series expansion coefficients a_0 through a_order for every
+    // source 
     for(std::size_t i = 0; i < sources.size(); ++i) {
 
         PointSource& src = sources[i];
@@ -169,7 +170,6 @@ Vector_<2> LocalExpansion<2>::evaluateForcefield(
         result += (double)k * (*this)(k) * z_rel_pow;
         z_rel_pow *= z_rel; 
     }
-
     // The gravitational field is given by {{-result.real(), result.imag()}}.
     // For the electric field, return {{result.real(), -result.imag()}}.
     return {{-result.real(), result.imag()}}; 
@@ -332,7 +332,8 @@ std::vector<Complex> LocalExpansion<3>::shift(const Vector_<3>& shift) const {
     return shifted_coefficients;
 }
 
-double LocalExpansion<3>::evaluatePotential(const Vector_<3>& eval_point) const {
+double LocalExpansion<3>::evaluatePotential(const Vector_<3>& eval_point) 
+        const {
  
     const LE& self = *this; 
     const auto [r, theta, phi] = (eval_point - self.center).toSpherical().data(); 
@@ -348,10 +349,14 @@ double LocalExpansion<3>::evaluatePotential(const Vector_<3>& eval_point) const 
         r_pow *= r; 
     }
 
+    // +pot.real() for the gravitational potential, 
+    // -pot.real() for the electrostatic potential
+    // n.b. this distinction is handled within the FmmTree classes
     return pot.real(); 
 }
 
-Vector_<3> LocalExpansion<3>::evaluateForcefield(const Vector_<3>& eval_point) const { 
+Vector_<3> LocalExpansion<3>::evaluateForcefield(const Vector_<3>& eval_point) 
+        const { 
 
     const auto [r, theta, phi] = (eval_point - this->center).toSpherical().data(); 
 
@@ -380,7 +385,10 @@ Vector_<3> LocalExpansion<3>::evaluateForcefield(const Vector_<3>& eval_point) c
         r_pow *= r; 
     }
 
-    return -Vector{{force_r, force_theta, force_phi}}.toCartesianBasis(theta, phi); 
+    // +Vector{{force_r, force_theta, force_phi}} for the gravitational field, 
+    // -Vector{{force_r, force_theta, force_phi}} for the electrostatic field
+    // n.b. this distinction is handled within the FmmTree classes
+    return Vector{{force_r, force_theta, force_phi}}.toCartesianBasis(theta, phi); 
 }
 
 } // namespace fmm
