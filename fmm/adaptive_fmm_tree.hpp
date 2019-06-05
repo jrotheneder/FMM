@@ -284,7 +284,7 @@ Vector_<d> AdaptiveFmmTree<d, field_type>::evaluateForcefield(
     // separately with a force which checks whether eval_point coincides
     // with a source location, in which case that source is ignored 
 
-    // use the grav. field here, optionally convert to Coulomb at return
+    // we use the grav. field here, optionally convert to Coulomb at return
     const bool grav = 1; 
     const bool safe = 1;
 

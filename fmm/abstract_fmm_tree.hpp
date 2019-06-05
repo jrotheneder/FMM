@@ -38,7 +38,7 @@ public:
     std::vector<double> evaluateParticlePotentialEnergies() const; 
     std::vector<Vector> evaluateParticleForces() const; 
 
-    virtual ~AbstractFmmTree() {}
+    ~AbstractFmmTree() {}
 
 protected:
     std::tuple<Vector, Vector> getDataRange() const;
@@ -48,8 +48,8 @@ protected:
 };
 
 template<std::size_t d, bool field_type>
-std::vector<double> AbstractFmmTree<d, field_type>::evaluateParticlePotentialEnergies() 
-        const {
+std::vector<double> AbstractFmmTree<d, field_type>::
+        evaluateParticlePotentialEnergies() const {
 
     std::vector<double> potentials(sources.size()); 
     #pragma omp parallel for
@@ -62,10 +62,11 @@ std::vector<double> AbstractFmmTree<d, field_type>::evaluateParticlePotentialEne
 }
 
 template<std::size_t d, bool field_type>
-std::vector<Vector_<d>> AbstractFmmTree<d, field_type>::evaluateParticleForces() 
-        const {
+std::vector<Vector_<d>> AbstractFmmTree<d, field_type>::
+        evaluateParticleForces() const {
 
     std::vector<Vector> forces(sources.size()); 
+
     #pragma omp parallel for 
     for(std::size_t i = 0; i < sources.size(); ++i) {
         forces[i] = sources[i].sourceStrength() 

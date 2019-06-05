@@ -36,6 +36,8 @@ struct Vector_ {
 
     Vector_ operator-() const { return -1. * *this; }
     Vector_ operator-(const Vector_& rhs) const { return *this + (-rhs); }
+    Vector_& operator*=(const double s) { return *this = *this * s; }
+    Vector_& operator/=(const double s) { return *this *= (1/s); }
     Vector_& operator+=(const Vector_& rhs) { return *this = *this + rhs; }
     Vector_& operator-=(const Vector_& rhs) { return *this = *this - rhs; }
 

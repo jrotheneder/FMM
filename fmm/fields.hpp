@@ -11,25 +11,22 @@ namespace fields {
 // this function checks whether the evaluation point 
 // coincides with the source location and returns zero in that case
 template<std::size_t d, bool grav = true, bool safe = true>
-double potential(const PointSource_<d>& src, 
-        const Vector_<d>& eval_point, const double eps = 0) {
+double potential(const PointSource_<d>& src, const Vector_<d>& eval_point, 
+        const double eps = 0) {
 
     double r = (src.position - eval_point).norm(); 
 
     if constexpr(safe) { if(r == 0) { return 0; }}
 
-    // TODO better code
-    if constexpr(grav) {
-        if constexpr(d == 2) { return src.q * std::log(r + eps); }
-        else { return src.q / (r + eps); }
-    }
-    else { // Coulomb potential
-        if constexpr(d == 2) { return -src.q * std::log(r + eps); }
-        else { return -src.q / (r + eps); }
-    }
+    double pot; 
+    if constexpr(d == 2) { pot = src.q * std::log(r + eps); }
+    else { pot = src.q / (r + eps); }
+
+    if constexpr(grav) { return pot; }
+    else { return -pot; }  // Coulomb potential
 }
 
-// Overload of the potential function for multiple sources. 
+// Overload of the potential function for multiple sources
 template<std::size_t d, bool grav = true, bool safe = true>
 double potential(const std::vector<PointSource_<d>>& sources, 
         const Vector_<d>& eval_point, const double eps = 0) {
@@ -48,23 +45,24 @@ double potential(const std::vector<PointSource_<d>>& sources,
 // function checks whether the evaluation point coincides with the source 
 // location and returns the zero vector in that case
 template<std::size_t d, bool grav = true, bool safe = true>
-Vector_<d> forcefield(const PointSource_<d>& src, 
-        const Vector_<d>& eval_point, const double eps = 0) {
+Vector_<d> forcefield(const PointSource_<d>& src, const Vector_<d>& eval_point, 
+        const double eps = 0) {
 
     Vector_<d> diff = src.position - eval_point; 
-    double r = diff.norm(); 
 
-    if constexpr(safe) { if(r == 0) { return Vector_<d>{}; }}
+    if constexpr(d == 2) {
+        double r_sq = diff.norm_sq(); 
+        if constexpr(safe) { if(r_sq == 0) { return Vector_<d>{}; }}
+        diff *= src.q/(r_sq + eps); 
+    } 
+    else {
+        double r = diff.norm(); 
+        if constexpr(safe) { if(r == 0) { return Vector_<d>{}; }}
+        diff *= src.q / (r*r*r + eps); 
+    }
 
-    // TODO better code
-    if constexpr(grav) {
-        if constexpr(d == 2) { return src.q / (r*r + eps) * diff; }
-        else { return src.q / (r*r*r + eps) * diff; }
-    }
-    else { // Coulomb potential
-        if constexpr(d == 2) { return -src.q / (r*r + eps) * diff; }
-        else { return -src.q / (r*r*r + eps) * diff; }
-    }
+    if constexpr(grav) { return diff; }
+    else { return -diff; }
 }
 
 // Overload of the force function for multiple sources. 

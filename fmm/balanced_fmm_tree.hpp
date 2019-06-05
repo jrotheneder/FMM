@@ -217,7 +217,7 @@ double BalancedFmmTree<d, field_type>::evaluatePotential(const Vector& eval_poin
     // separately with a potential which checks whether eval_point coincides
     // with a source location (in which case an exception is thrown)
     
-    // use the grav. field here, optionally convert to Coulomb at return
+    // we use the grav. field here, optionally convert to Coulomb at return
     const bool grav = 1; 
     const bool safe = 1;
 
