@@ -1,22 +1,33 @@
 #include <vector> 
+#include <stdexcept> 
+
+#include <cmath> 
+#include <gsl/gsl_sf_gamma.h>  
 
 #include "WolframLibrary.h"
 #include "../adaptive_fmm_tree.hpp" 
 
+#ifndef FIELD_TYPE // True => Grav. field, false => Electrostatic
+#error "Field type undefined."
+#endif
+
+#ifndef DIM
+#error "Dimension undefined."
+#endif
+
 using namespace fmm;
 
-EXTERN_C DLLEXPORT int FMM2D_Forces(WolframLibraryData libData, mint Argc, 
+EXTERN_C DLLEXPORT int FMM_Forces(WolframLibraryData libData, mint Argc, 
         MArgument *Args, MArgument Res) {
 
-    const int d = 2;
 
-    using Vec = Vector_<d>;
-    using Src = PointSource_<d>;
+    using Vec = Vector_<DIM>;
+    using Src = PointSource_<DIM>;
  
     MTensor positions = MArgument_getMTensor(Args[0]); 
     MTensor charges = MArgument_getMTensor(Args[1]); 
     mint count = libData->MTensor_getDimensions(positions)[0]; 
-    mint n_sources = count/d;
+    mint n_sources = count/DIM;
 
     mreal* positions_data = libData->MTensor_getRealData(positions); 
     mreal* charge_data = libData->MTensor_getRealData(charges); 
@@ -26,7 +37,7 @@ EXTERN_C DLLEXPORT int FMM2D_Forces(WolframLibraryData libData, mint Argc,
 
     MTensor out; 
     mint out_rank = 1;
-    mint out_dims[1] {n_sources * d};
+    mint out_dims[1] {n_sources * DIM};
     mint err = libData->MTensor_new(MType_Real, out_rank, out_dims, &out);
 
     if(err) {
@@ -39,19 +50,19 @@ EXTERN_C DLLEXPORT int FMM2D_Forces(WolframLibraryData libData, mint Argc,
 
     for(int i = 0; i < n_sources; ++i) {
         Vec v; 
-        for(int j = 0; j < d; ++j) {
-            v[j] = positions_data[d*i + j];    
+        for(int j = 0; j < DIM; ++j) {
+            v[j] = positions_data[DIM*i + j];    
         }
         double q = charge_data[i];  
         sources.push_back({v,q}); 
     }
 
-    AdaptiveFmmTree<d> fmm_tree(sources, items_per_leaf, eps);  
+    AdaptiveFmmTree<DIM> fmm_tree(sources, items_per_leaf, eps);  
     std::vector<Vec> forces = fmm_tree.evaluateParticleForces();  
 
     for(int i = 0; i < n_sources; ++i) {
-        for(int j = 0; j < d; ++j) {
-            out_data[d*i + j] = forces[i][j];     
+        for(int j = 0; j < DIM; ++j) {
+            out_data[DIM*i + j] = forces[i][j];     
         }
     }
     
