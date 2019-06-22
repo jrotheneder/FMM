@@ -1,9 +1,6 @@
 #include "series_expansion.hpp"
 #include "multipole_expansion.hpp"
 
-#include <gsl/gsl_complex.h> 
-#include <gsl/gsl_poly.h> 
-
 #ifndef LOCAL_EXPANSION_H
 #define LOCAL_EXPANSION_H
 

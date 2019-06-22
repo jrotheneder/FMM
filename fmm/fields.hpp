@@ -79,6 +79,92 @@ Vector_<d> forcefield(const std::vector<PointSource_<d>>& sources,
     return frc; 
 }
 
+// Parallelized function for computation of all potentials on all particles
+// that exploits the symmetry of the kernel 
+template<std::size_t d, bool grav = true>
+std::vector<double> particlePotentialEnergies(
+        const std::vector<PointSource_<d>>& sources, const double eps = 0) {
+
+    const std::size_t N = sources.size(); 
+    std::vector<double> particle_potentials(N); 
+
+    #pragma omp parallel for schedule(guided)
+    for(std::size_t i = 0; i < N; ++i) {
+
+        Vector_<d> eval_point = sources[i].position;
+        double Qi = sources[i].sourceStrength(); 
+
+        double particle_epot = 0; // pot. energy of part. i from interactions w. j < i
+
+        for(std::size_t j = 0; j < i; ++j) {
+
+            double temp_epot
+                = Qi * potential<d, grav, false>(sources[j], eval_point, eps);
+
+            particle_epot += temp_epot; 
+            #pragma omp atomic
+            particle_potentials[j] += temp_epot;
+        }
+
+        #pragma omp atomic
+        particle_potentials[i] += particle_epot; 
+    }
+
+    return particle_potentials; 
+}
+
+// Parallelized function for computation of all forces on all particles
+// Does not make use of the antisymmetry of the force kernel, since the amount
+// of locking required diminishes any potential performance gains
+template<std::size_t d, bool grav = true>
+std::vector<Vector_<d>> particleForces(const std::vector<PointSource_<d>>& sources, 
+        const double eps = 0) {
+
+    const std::size_t N = sources.size(); 
+    std::vector<Vector_<d>> particle_forces(N); 
+
+    #pragma omp parallel for schedule(guided)
+    for(std::size_t i = 0; i < N; ++i) {
+
+        Vector_<d> eval_point = sources[i].position;
+        double Qi = sources[i].sourceStrength(); 
+
+        Vector_<d> particle_force{0};  // Force on part. i by all j < i
+
+        for(std::size_t j = 0; j < i; ++j) {
+
+            Vector_<d> temp_force 
+                = Qi * forcefield<d, grav, false>(sources[j], eval_point, eps);
+
+            particle_force += temp_force; 
+
+            for(unsigned short k = 0; k < d; ++k) {
+
+                #pragma omp atomic
+                particle_forces[j][k] -= temp_force[k]; 
+            }
+            
+        }
+
+//      for(std::size_t j = i+1; j < N; ++j) {
+
+//          Vector_<d> temp_force 
+//              = Qi * forcefield<d, grav, false>(sources[j], eval_point, eps);
+
+//          particle_force += temp_force; 
+//      }
+
+        for(unsigned short k = 0; k < d; ++k) {
+            #pragma omp atomic
+            particle_forces[i][k] += particle_force[k]; 
+        }
+//      particle_forces[i] = particle_force;  
+}
+
+    return particle_forces; 
+}
+
+
 } //namespace fields
 } //namespace fmm
 
