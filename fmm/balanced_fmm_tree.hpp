@@ -91,10 +91,9 @@ template<std::size_t d, bool field_type>
 BalancedFmmTree<d, field_type>::BalancedFmmTree(
         std::vector<PointSource_<d>>& sources, std::size_t sources_per_cell, 
         double eps, double force_smoothing_eps): BalancedOrthtree<Vector, d>(), 
-        AbstractFmmTree<d, field_type>(sources, force_smoothing_eps) { 
+        AbstractFmmTree<d, field_type>(sources, eps, force_smoothing_eps) { 
 
-    // Determine expansion order, tree height, numbers of nodes and leaves
-    this->order = (ceil(log(1/eps) / log(2))), 
+    // Determine tree height, numbers of nodes and leaves
     this->height = ceil(log((double)sources.size()/sources_per_cell) 
         / log(AOT::n_children));
 
@@ -206,6 +205,7 @@ BalancedFmmTree<d, field_type>::BalancedFmmTree(
 template<std::size_t d, bool field_type>
 double BalancedFmmTree<d, field_type>::evaluatePotential(const Vector& eval_point) const {
 
+    // TODO handle the case where eval_point falls outside of comp. domain
     uint64_t leaf_index = this->getMortonIndex(this->getLeafBoxIndices(eval_point)); 
     FmmLeaf& containing_leaf = leaves[leaf_index];  
 
@@ -215,22 +215,20 @@ double BalancedFmmTree<d, field_type>::evaluatePotential(const Vector& eval_poin
     // Contributions from sources in near neighbour leaves (eval. directly).
     // The list of NNs includes the containing_leaf; this one is handled
     // separately with a potential which checks whether eval_point coincides
-    // with a source location (in which case an exception is thrown)
+    // with a source location (in which case that source is ignored)
     
-    // we use the grav. field here, optionally convert to Coulomb at return
+    // we use the grav. field here and optionally convert to Coulomb at return
     const bool grav = 1; 
     const bool safe = 1;
 
     for(auto leaf : containing_leaf.near_neighbours) {
         if(leaf != &containing_leaf) {
             pot += fields::potential<d, grav, !safe>(
-                *static_cast<FmmLeaf*>(leaf)->sources, 
-                eval_point, this->force_smoothing_eps);
+                *static_cast<FmmLeaf*>(leaf)->sources, eval_point);
         }
         else {
             pot += fields::potential<d, grav, safe>(
-                *static_cast<FmmLeaf*>(leaf)->sources, 
-                eval_point, this->force_smoothing_eps);
+                *static_cast<FmmLeaf*>(leaf)->sources, eval_point);
         }
     }
     
@@ -242,9 +240,10 @@ double BalancedFmmTree<d, field_type>::evaluatePotential(const Vector& eval_poin
 }
 
 template<std::size_t d, bool field_type>
-Vector_<d> BalancedFmmTree<d, field_type>::evaluateForcefield(const Vector_<d>& eval_point) 
-        const {
+Vector_<d> BalancedFmmTree<d, field_type>::evaluateForcefield(
+        const Vector_<d>& eval_point) const {
 
+    // Assume eval_point falls into the root box, else this will throw: 
     uint64_t leaf_index = this->getMortonIndex(this->getLeafBoxIndices(eval_point)); 
     FmmLeaf& containing_leaf = leaves[leaf_index];  
 

@@ -20,23 +20,41 @@ protected:
     using LE = LocalExpansion<d>;
 
     const std::vector<PointSource>& sources;
-    std::size_t order;
+    unsigned order;
+    double eps; 
     double force_smoothing_eps; 
 
 public: 
-    AbstractFmmTree(std::vector<PointSource>& sources, double force_smoothing_eps): 
-            sources(sources), force_smoothing_eps(force_smoothing_eps) {
+    AbstractFmmTree(std::vector<PointSource>& sources, double eps, 
+            double force_smoothing_eps): sources(sources), eps(eps),
+            force_smoothing_eps(force_smoothing_eps) {
 
         if constexpr(!(d == 2 || d == 3)) {
             throw std::logic_error("Implementations are only available for "
                 "2 & 3 dimensions."); 
         } 
+
+        // Determine expansion order
+        double A = std::accumulate(sources.begin(), sources.end(), 0.0, 
+            [](double acc, const PointSource& src) 
+            { return acc + std::abs(src.sourceStrength()); }); 
+
+        this->order = (ceil(log(A/eps) / log(2))); 
+        //if constexpr(d == 2) {
+        //  this->order = (ceil(log(A/eps) / log(2))); 
+        //}
+        //else if constexpr(d == 3) {
+        //    this->order = (ceil(log(A/eps) / log(4./3)));  
+        //}
     };
 
     virtual double evaluatePotential(const Vector& eval_point) const = 0; 
     virtual Vector evaluateForcefield(const Vector& eval_point) const = 0; 
     std::vector<double> evaluateParticlePotentialEnergies() const; 
     std::vector<Vector> evaluateParticleForces() const; 
+
+    unsigned getOrder() { return order; }
+    double getAccuracyEps() { return eps; }
 
     ~AbstractFmmTree() {}
 
@@ -52,7 +70,7 @@ std::vector<double> AbstractFmmTree<d, field_type>::
         evaluateParticlePotentialEnergies() const {
 
     std::vector<double> potentials(sources.size()); 
-    #pragma omp parallel for
+    #pragma omp parallel for schedule(dynamic)
     for(std::size_t i = 0; i < sources.size(); ++i) {
         potentials[i] = sources[i].sourceStrength() 
             * evaluatePotential(sources[i].position);
@@ -67,7 +85,7 @@ std::vector<Vector_<d>> AbstractFmmTree<d, field_type>::
 
     std::vector<Vector> forces(sources.size()); 
 
-    #pragma omp parallel for 
+    #pragma omp parallel for schedule(dynamic)
     for(std::size_t i = 0; i < sources.size(); ++i) {
         forces[i] = sources[i].sourceStrength() 
             * evaluateForcefield(sources[i].position);

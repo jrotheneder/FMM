@@ -65,6 +65,7 @@ struct AbstractOrthtree<Vector, d>::BaseNode {
         depth(depth), parent(parent), children() {}
 
     bool adjacent(BaseNode* other) const; 
+    bool contains(const Vector& point) const; 
 
     virtual ~BaseNode() {}; // Implement tailored destructor in deriving classes
 }; 
@@ -92,6 +93,21 @@ bool AbstractOrthtree<Vector, d>::BaseNode::adjacent(BaseNode* other) const {
     for(unsigned i = 0; i < d; ++i) {
 
         if(diffs1[i] > 0 || diffs2[i] > 0) { return false; }
+    }
+
+    return true; 
+}
+
+
+template<typename Vector, std::size_t d>
+bool AbstractOrthtree<Vector, d>::BaseNode::contains(const Vector& point) const {
+
+    Vector ones(1); 
+    Vector lower = this->center - this->box_length/2 * ones; 
+    Vector upper = this->center + this->box_length/2 * ones; 
+
+    for(unsigned i = 0; i < d; ++i) {
+        if(point[i] < lower[i] || point[i] > upper[i]) { return false; }
     }
 
     return true; 
