@@ -3,8 +3,7 @@
 #include <gsl/gsl_odeiv2.h> 
 #include <gsl/gsl_errno.h>
 
-#include "fmm_general.hpp"
-#include "adaptive_fmm_tree.hpp"
+#include "../adaptive_fmm_tree.hpp"
 
 #include <valgrind/callgrind.h> 
 
@@ -92,7 +91,11 @@ int main(int argc, char *argv[]) {
     string sources_file = argc > 1 ? argv[1] : input_folder + "sources.dat"; 
     string velocities_file = argc > 2 ? argv[2] : input_folder + "velocities.dat"; 
     string masses_file = argc > 3 ? argv[3] : input_folder + "masses.dat"; 
-    if(!filesystem::exists(sources_file) || !filesystem::exists(velocities_file)) {
+
+    if(!filesystem::exists(sources_file) 
+        || !filesystem::exists(velocities_file)
+        || !filesystem::exists(masses_file)) {
+
         throw runtime_error("File not found."); 
     }
 
@@ -107,7 +110,7 @@ int main(int argc, char *argv[]) {
     const unsigned d = 2;       // Dimension 
     using Src = PointSource_<d>; 
 
-    double t = 0.0, t1 = 1;  // start and end times
+    double t = 0.0, t1 = 10;  // start and end times
     const unsigned n_saves = 100; 
 
     unsigned N; 

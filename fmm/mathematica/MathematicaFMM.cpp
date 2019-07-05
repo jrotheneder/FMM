@@ -89,7 +89,6 @@ EXTERN_C DLLEXPORT int FMMParticlePotentialEnergies(WolframLibraryData libData,
 
     const mint items_per_leaf = MArgument_getInteger(Args[2]); 
     const mreal accuracy_eps = MArgument_getReal(Args[3]); 
-    const mreal force_smoothing_eps = MArgument_getReal(Args[4]); 
 
     MTensor out; 
     mint out_rank = 1;
@@ -115,7 +114,7 @@ EXTERN_C DLLEXPORT int FMMParticlePotentialEnergies(WolframLibraryData libData,
     }
 
     AdaptiveFmmTree<DIM, FIELD_TYPE> fmm_tree(sources, items_per_leaf, 
-            accuracy_eps, force_smoothing_eps);  
+            accuracy_eps);  
 
     std::vector<double> potential_energies 
         = fmm_tree.evaluateParticlePotentialEnergies();  
@@ -197,7 +196,6 @@ EXTERN_C DLLEXPORT int DirectParticlePotentialEnergies(WolframLibraryData libDat
     mreal* positions_data = libData->MTensor_getRealData(positions); 
     mreal* charge_data = libData->MTensor_getRealData(charges); 
 
-    const mreal force_smoothing_eps = MArgument_getReal(Args[2]); 
 
     MTensor out; 
     mint out_rank = 1;
@@ -223,8 +221,7 @@ EXTERN_C DLLEXPORT int DirectParticlePotentialEnergies(WolframLibraryData libDat
     }
 
     std::vector<double> potential_energies 
-        = fields::particlePotentialEnergies<DIM, FIELD_TYPE>(sources, 
-            force_smoothing_eps);  
+        = fields::particlePotentialEnergies<DIM, FIELD_TYPE>(sources);  
 
     #pragma omp parallel for schedule(dynamic)
     for(int i = 0; i < n_sources; ++i) {
@@ -252,10 +249,9 @@ EXTERN_C DLLEXPORT int FMMEvaluatePotentials(WolframLibraryData libData,
 
     const mint items_per_leaf = MArgument_getInteger(Args[2]); 
     const mreal accuracy_eps = MArgument_getReal(Args[3]); 
-    const mreal force_smoothing_eps = MArgument_getReal(Args[4]); 
 
-    MTensor flat_eval_points = MArgument_getMTensor(Args[5]); 
-    mbool tree_to_file = MArgument_getBoolean(Args[6]); 
+    MTensor flat_eval_points = MArgument_getMTensor(Args[4]); 
+    mbool tree_to_file = MArgument_getBoolean(Args[5]); 
 
     mint n_eval_points = libData->MTensor_getDimensions(flat_eval_points)[0]/DIM;
     mreal* eval_points_data = libData->MTensor_getRealData(flat_eval_points); 
@@ -297,7 +293,7 @@ EXTERN_C DLLEXPORT int FMMEvaluatePotentials(WolframLibraryData libData,
     }
     
     AdaptiveFmmTree<DIM, FIELD_TYPE> fmm_tree(sources, items_per_leaf, 
-            accuracy_eps, force_smoothing_eps);  
+            accuracy_eps);  
 
     if(tree_to_file) {
         fmm_tree.toFile(); 
@@ -328,8 +324,7 @@ EXTERN_C DLLEXPORT int DirectEvaluatePotentials(WolframLibraryData libData,
     mreal* positions_data = libData->MTensor_getRealData(positions); 
     mreal* charge_data = libData->MTensor_getRealData(charges); 
 
-    const mreal force_smoothing_eps = MArgument_getReal(Args[2]); 
-    MTensor flat_eval_points = MArgument_getMTensor(Args[3]); 
+    MTensor flat_eval_points = MArgument_getMTensor(Args[2]); 
 
     mint n_eval_points = libData->MTensor_getDimensions(flat_eval_points)[0]/DIM;
     mreal* eval_points_data = libData->MTensor_getRealData(flat_eval_points); 
@@ -372,8 +367,7 @@ EXTERN_C DLLEXPORT int DirectEvaluatePotentials(WolframLibraryData libData,
         #pragma omp for schedule(dynamic) 
         for(long int i = 0; i < n_eval_points; ++i) {
             out_data[i] = fields::potential<DIM, FIELD_TYPE, true>(
-                sources, eval_points[i], force_smoothing_eps
-                );
+                sources, eval_points[i]);
         }
     }
     

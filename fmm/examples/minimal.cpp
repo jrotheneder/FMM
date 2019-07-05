@@ -7,7 +7,7 @@ int main(int argc, char *argv[]) {
     const size_t N = 10000;
     const size_t items_per_leaf = 50; 
     const size_t d = 2;
-    const double eps = 1E-4; 
+    const double eps = 1E1; 
     const double extent = 32;
 
     using Vec = Vector_<d>;
