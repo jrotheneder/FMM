@@ -84,7 +84,7 @@ struct Vector_ {
         else if(d == 3)  {
             return coords[0] * coords[0] 
                 + coords[1] * coords[1]
-                + coords[2] * coords[3]; 
+                + coords[2] * coords[2]; 
         }
 
         return this->dot(*this); 
@@ -165,9 +165,9 @@ struct Vector_ {
             const double cos_phi = std::cos(phi);  
 
             return Vector_{{ 
-                sin_theta * cos_phi * coords[0] + cos_theta * cos_phi * coords[1] 
+                cos_phi * (sin_theta * coords[0] + cos_theta * coords[1]) 
                     - sin_phi * coords[2],
-                sin_theta * sin_phi * coords[0] + cos_theta * sin_phi * coords[1] 
+                sin_phi * (sin_theta * coords[0] + cos_theta * coords[1])
                     + cos_phi * coords[2],
                 cos_theta * coords[0] - sin_theta * coords[1] 
             }};

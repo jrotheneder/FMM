@@ -11,16 +11,15 @@ namespace fields {
 // this function checks whether the evaluation point 
 // coincides with the source location and returns zero in that case
 template<std::size_t d, bool grav = true, bool safe = true>
-double potential(const PointSource_<d>& src, const Vector_<d>& eval_point, 
-        const double eps = 0) {
+double potential(const PointSource_<d>& src, const Vector_<d>& eval_point) {
 
     double r = (src.position - eval_point).norm(); 
 
     if constexpr(safe) { if(r == 0) { return 0; }}
 
     double pot; 
-    if constexpr(d == 2) { pot = src.q * std::log(r + eps); }
-    else { pot = src.q / (r + eps); }
+    if constexpr(d == 2) { pot = src.q * std::log(r); }
+    else { pot = -src.q / r; }
 
     if constexpr(grav) { return pot; }
     else { return -pot; }  // Coulomb potential
@@ -29,12 +28,12 @@ double potential(const PointSource_<d>& src, const Vector_<d>& eval_point,
 // Overload of the potential function for multiple sources
 template<std::size_t d, bool grav = true, bool safe = true>
 double potential(const std::vector<PointSource_<d>>& sources, 
-        const Vector_<d>& eval_point, const double eps = 0) {
+        const Vector_<d>& eval_point) {
 
     double pot = 0; 
 
     for(std::size_t i = 0; i < sources.size(); ++i) {
-        pot += potential<d, grav, safe>(sources[i], eval_point, eps);  
+        pot += potential<d, grav, safe>(sources[i], eval_point);  
     }
 
     return pot; 
@@ -83,7 +82,7 @@ Vector_<d> forcefield(const std::vector<PointSource_<d>>& sources,
 // that exploits the symmetry of the kernel 
 template<std::size_t d, bool grav = true>
 std::vector<double> particlePotentialEnergies(
-        const std::vector<PointSource_<d>>& sources, const double eps = 0) {
+        const std::vector<PointSource_<d>>& sources) {
 
     const std::size_t N = sources.size(); 
     std::vector<double> particle_potentials(N); 
@@ -99,7 +98,7 @@ std::vector<double> particlePotentialEnergies(
         for(std::size_t j = 0; j < i; ++j) {
 
             double temp_epot
-                = Qi * potential<d, grav, false>(sources[j], eval_point, eps);
+                = Qi * potential<d, grav, false>(sources[j], eval_point);
 
             particle_epot += temp_epot; 
             #pragma omp atomic

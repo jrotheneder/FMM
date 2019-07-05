@@ -13,7 +13,6 @@ namespace fmm {
 
 template<unsigned d> struct MultipoleExpansion: SeriesExpansion<d> {};
 
-
 /******************************************************************************/
 /*                      2D Multipole Expansion Implementation                    */
 /******************************************************************************/
@@ -50,9 +49,13 @@ MultipoleExpansion<2>::MultipoleExpansion(const Vector_<2>& center,
 
         (*this)(0) += src.sourceStrength(); 
         for(unsigned j = 1; j <= order; ++j) {
-            (*this)(j) -=  src.sourceStrength() * z_rel_pow / (double)j; 
+            (*this)(j) -=  src.sourceStrength() * z_rel_pow; 
             z_rel_pow *= z_rel; 
         }
+    }
+
+    for(unsigned j = 1; j <= order; ++j) {
+        (*this)(j) /=  (double)j; 
     }
 }
 
@@ -258,10 +261,10 @@ double MultipoleExpansion<3>::evaluatePotential(const Vector_<3>& eval_point) co
         r_pow /= r; 
     }
 
-    // +pot.real() for the gravitational potential, 
-    // -pot.real() for the electrostatic potential
+    // -pot.real() for the gravitational potential, 
+    // +pot.real() for the electrostatic potential
     // n.b. this distinction is handled within the FmmTree classes
-    return pot.real(); 
+    return -pot.real(); 
 }
 
 Vector_<3> MultipoleExpansion<3>::evaluateForcefield(const Vector_<3>& eval_point) 

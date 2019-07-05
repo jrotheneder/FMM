@@ -59,12 +59,15 @@ LocalExpansion<2>::LocalExpansion(const Vector_<2>& center, std::size_t order,
         Complex z_rel = z - this->center; // Express z in box-local coordinates
         Complex z_rel_inv_pow = 1./z_rel; 
 
-        this->coefficients[0] += src.sourceStrength() * std::log(z_rel); 
+        this->coefficients[0] += src.sourceStrength() * std::log(-z_rel); 
         for(std::size_t j = 1; j <= order; ++j) {
-            this->coefficients[j] -=  
-                src.sourceStrength() * z_rel_inv_pow / (double)j; 
+            this->coefficients[j] -=  src.sourceStrength() * z_rel_inv_pow; 
             z_rel_inv_pow /= z_rel; 
         }
+    }
+
+    for(std::size_t j = 1; j <= order; ++j) {
+        this->coefficients[j] /=  (double)j;
     }
 }
 
@@ -346,10 +349,10 @@ double LocalExpansion<3>::evaluatePotential(const Vector_<3>& eval_point)
         r_pow *= r; 
     }
 
-    // +pot.real() for the gravitational potential, 
-    // -pot.real() for the electrostatic potential
+    // -pot.real() for the gravitational potential, 
+    // +pot.real() for the electrostatic potential
     // n.b. this distinction is handled within the FmmTree classes
-    return pot.real(); 
+    return -pot.real(); 
 }
 
 Vector_<3> LocalExpansion<3>::evaluateForcefield(const Vector_<3>& eval_point) 
