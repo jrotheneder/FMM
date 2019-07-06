@@ -34,7 +34,7 @@ protected:
 
 public: 
     BalancedFmmTree(std::vector<PointSource>& sources, std::size_t items_per_cell, 
-            double eps, double force_smoothing_eps);
+            double eps, double force_smoothing_eps = 0);
 
     double evaluatePotential(const Vector& eval_point) const; 
     Vector evaluateForcefield(const Vector& eval_point) const; 

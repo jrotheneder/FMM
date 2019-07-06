@@ -56,7 +56,7 @@ public:
     unsigned getOrder() { return order; }
     double getAccuracyEps() { return eps; }
 
-    ~AbstractFmmTree() {}
+    virtual ~AbstractFmmTree() {}
 
 protected:
     std::tuple<Vector, Vector> getDataRange() const;

@@ -98,6 +98,24 @@ std::vector<PointSource_<d>> readSourcesFromFile(std::string filename) {
     return sources; 
 }
 
+template<std::size_t d>
+void sourceLocationsToFile(std::vector<PointSource_<d>> sources, 
+        std::string filename, std::string sep = "\n") {
+
+    std::ofstream ofile; 
+    ofile.open(filename);
+    ofile << std::setprecision(std::numeric_limits<double>::digits10) << std::scientific;
+
+    for(auto s : sources) {
+        for(unsigned i = 0; i < d; ++i) {
+            ofile << s[i] << "\t"; 
+        }
+        ofile << "\n"; 
+    }
+
+    ofile.close();
+}
+
 template<typename T>
 std::vector<T> vectorFromFile(std::string filename) {
 
@@ -123,6 +141,8 @@ void vectorFromFile(std::string filename, T* dest_array) {
         dest_array[index++] = temp; 
     }
 }
+
+
 
 } // namespace fmm
 #endif 

@@ -10,6 +10,7 @@
 #include <chrono> 
 #include <filesystem> 
 
+#include <omp.h> 
 #include <valgrind/callgrind.h> 
 
 #include "../debugging.hpp" 
@@ -21,18 +22,20 @@ using namespace fmm::fields;
 
 int main(int argc, char *argv[]) {
 
-    size_t N = 20000;
-    const size_t items_per_leaf = 100;
-    const size_t d = 2;
+    omp_set_num_threads(1); 
+
+    size_t N = 7500;
+    const size_t items_per_leaf = 400;
+    const size_t d = 3;
     const double eps = 1E-4; 
-    const double extent = 1E0; 
+    const double extent = 5; 
     const double force_smoothing_eps = 0;
     
-    #define adaptive false
+    #define adaptive true
     const bool uniform = true; 
     const bool from_file = false; 
     const bool accuracy_check = true; 
-    const bool tree_to_file = true; 
+    const bool tree_to_file = false; 
     const bool field_type = true;  // true for gravitational
 
     const size_t seed = 42; 
@@ -75,18 +78,20 @@ int main(int argc, char *argv[]) {
         }
     }
 
+    sourceLocationsToFile(sources, "logs/source_locs2.dat"); 
     
     auto t1 = std::chrono::high_resolution_clock::now();
 
-    CALLGRIND_TOGGLE_COLLECT;
+    //CALLGRIND_TOGGLE_COLLECT;
     #if adaptive
         AdaptiveFmmTree<d, field_type> fmm_tree(sources, items_per_leaf, eps, 
             force_smoothing_eps);
     #else 
+        std::cout << "this" << "\n";
         BalancedFmmTree<d, field_type> fmm_tree(sources, items_per_leaf, eps, 
             force_smoothing_eps);
     #endif
-    CALLGRIND_TOGGLE_COLLECT;
+    //CALLGRIND_TOGGLE_COLLECT;
 
     auto t2 = std::chrono::high_resolution_clock::now();
 
@@ -111,7 +116,7 @@ int main(int argc, char *argv[]) {
     std::cout << forcefield<d, field_type>(sources, eval_point, 
             force_smoothing_eps) << std::endl;
 
-    std::cout << "\n\nTree building took " << chrono_duration(t2-t1) << "s.";
+    std::cout << "\n\nTree building took " << chrono_duration(t2-t1) << "s.\n";
     if(accuracy_check) {
         t1 = std::chrono::high_resolution_clock::now();
         auto potentials = fmm_tree.evaluateParticlePotentialEnergies(); 

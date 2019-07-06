@@ -27,7 +27,7 @@ template <typename T>
 void printIterable(T obj, std::string sep = ",") {
     std::cout << "[ ";
     for(auto& i : obj) {
-        std::cout << i << " " << sep; 
+        std::cout << i  << sep << " "; 
     }
     std::cout << "]\n";
 }
@@ -36,7 +36,7 @@ template <typename T>
 void printVec(T& vec, size_t len, std::string sep = ",") {
     std::cout << "[ ";
     for(size_t i = 0; i < len; i++) {
-        std::cout << vec[i] << " " << sep; 
+        std::cout << vec[i] << sep << " "; 
     }
     std::cout << "]\n";
 }

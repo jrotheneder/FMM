@@ -8,7 +8,7 @@ Needs["CCompilerDriver`"];
 (*Begin["`Private`"];*)
 	
 	sourceFile = "MathematicaFMM.cpp";
-	compileOpts = {"-Wall","-Wno-unknown-pragmas","-pedantic","-fno-builtin","-std=c++17","-fopenmp"};
+	compileOpts = {"-Wall","-Wno-unknown-pragmas","-pedantic","-fno-builtin","-std=c++17"(*,"-fopenmp"*)};
 	sysCompileOpts = {"-O3","-fPIC"}; 
 	libs = {"stdc++fs","gsl","gslcblas"}; 
 	
