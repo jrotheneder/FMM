@@ -210,7 +210,7 @@ EXTERN_C DLLEXPORT int DirectParticlePotentialEnergies(WolframLibraryData libDat
 
     std::vector<Src> sources(n_sources);
 
-    #pragma omp parallel for schedule(dynamic)
+    //#pragma omp parallel for schedule(dynamic)
     for(int i = 0; i < n_sources; ++i) {
         Vec v; 
         for(int j = 0; j < DIM; ++j) {
@@ -223,7 +223,7 @@ EXTERN_C DLLEXPORT int DirectParticlePotentialEnergies(WolframLibraryData libDat
     std::vector<double> potential_energies 
         = fields::particlePotentialEnergies<DIM, FIELD_TYPE>(sources);  
 
-    #pragma omp parallel for schedule(dynamic)
+    //#pragma omp parallel for schedule(dynamic)
     for(int i = 0; i < n_sources; ++i) {
         out_data[i] = potential_energies[i];     
     }

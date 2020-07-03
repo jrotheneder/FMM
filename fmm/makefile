@@ -1,4 +1,4 @@
-CXX = ~/gcc-8/bin/g++
+CXX = g++-8
 EXT = cpp
 
 DEBUGFLAGS = -g -ggdb -O3 -ffast-math #-fno-inline
@@ -6,12 +6,11 @@ OFLAGS = -O3 -ffast-math -fopenmp
 LIBS = -lstdc++fs -lgsl -lgslcblas 
 CXXFLAGS = -Wall -Wno-unknown-pragmas -fno-builtin -std=c++17 -pedantic 
 
-#TARGET = test/accuracy_seq_speedup
-TARGET = test/fmm_tree
+TARGET = examples/minimal
+#TARGET = test/fmm_tree
 DEPENDS = makefile $(TARGET).$(EXT) abstract_orthtree.hpp balanced_orthtree.hpp \
-		  balanced_point_orthtree.hpp adaptive_point_orthtree.hpp vector.hpp \
-		  abstract_fmm_tree.hpp balanced_fmm_tree.hpp series_expansion.hpp \
-		  multipole_expansion.hpp local_expansion.hpp debugging.hpp \
+		   vector.hpp abstract_fmm_tree.hpp balanced_fmm_tree.hpp series_expansion.hpp \
+		  multipole_expansion.hpp local_expansion.hpp \
 		  adaptive_fmm_tree.hpp fmm_general.hpp fields.hpp
 
 all: $(TARGET)

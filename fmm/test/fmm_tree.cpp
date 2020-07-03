@@ -13,7 +13,7 @@
 #include <omp.h> 
 #include <valgrind/callgrind.h> 
 
-#include "../debugging.hpp" 
+#include "../debugging.hpp"
 #include "../balanced_fmm_tree.hpp" 
 #include "../adaptive_fmm_tree.hpp" 
 
@@ -22,17 +22,15 @@ using namespace fmm::fields;
 
 int main(int argc, char *argv[]) {
 
-    omp_set_num_threads(1); 
-
-    size_t N = 7500;
-    const size_t items_per_leaf = 400;
+    size_t N = ceil(1.5*pow(10,5));
+    const size_t items_per_leaf = 2000;
     const size_t d = 3;
-    const double eps = 1E-4; 
+    const double eps = 1E-3; 
     const double extent = 5; 
     const double force_smoothing_eps = 0;
     
     #define adaptive true
-    const bool uniform = true; 
+    const bool uniform = false; 
     const bool from_file = false; 
     const bool accuracy_check = true; 
     const bool tree_to_file = false; 

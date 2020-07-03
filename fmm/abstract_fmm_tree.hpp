@@ -40,12 +40,6 @@ public:
             { return acc + std::abs(src.sourceStrength()); }); 
 
         this->order = (ceil(log(A/eps) / log(2))); 
-        //if constexpr(d == 2) {
-        //  this->order = (ceil(log(A/eps) / log(2))); 
-        //}
-        //else if constexpr(d == 3) {
-        //    this->order = (ceil(log(A/eps) / log(4./3)));  
-        //}
     };
 
     virtual double evaluatePotential(const Vector& eval_point) const = 0; 

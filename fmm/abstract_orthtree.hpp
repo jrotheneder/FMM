@@ -15,7 +15,6 @@
 #include <functional> 
 #include <cassert> 
 
-#include "debugging.hpp" 
 #include "vector.hpp"
 
 template<typename Vector, std::size_t d>

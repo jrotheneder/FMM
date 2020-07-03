@@ -1,6 +1,6 @@
 dim = 2; 
 fieldType = "True" (* grav *); 
-nc = 1000; 
+nc = 200;
 charges = RandomReal[{-1,1},nc];
 
 centers = {{-5,0},{5,0}};
@@ -20,17 +20,14 @@ DirectPointEvalPotentials = Direct2DGravEvaluatePotentials;
 {tf, forces} = AbsoluteTiming[
     FMMParticleForces[Flatten[positions],charges,20,0.01,0]];
 {tp, potentials} = AbsoluteTiming[
-    FMMParticlePotentials[Flatten[positions],charges,20,0.01,0]];
-{tpd, refpotentials} = AbsoluteTiming[DirectPotentials[Flatten[positions],charges,0]];
-{tpx, evalpots} = AbsoluteTiming[
-    FMMPointEvalPotentials[Flatten[positions],charges, 50, 0.001, 0,
-    Flatten[positions], False]
-];
+    FMMParticlePotentials[Flatten[positions],charges,20,0.01]];
+{tpd, refpotentials} = AbsoluteTiming[DirectPotentials[Flatten[positions],charges]];
 
 Print[tp]
 Print[tpd]
 Print[tf]
-Print[tpx, ", mean dev is ", Mean[refpotentials - charges * evalpots]]
+Print[potentials]
+Print[tpx, ", max rel dev is ", Max[Abs[potentials-refpotentials]]]
 
 
 

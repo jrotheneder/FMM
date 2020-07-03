@@ -205,7 +205,6 @@ BalancedFmmTree<d, field_type>::BalancedFmmTree(
 template<std::size_t d, bool field_type>
 double BalancedFmmTree<d, field_type>::evaluatePotential(const Vector& eval_point) const {
 
-    // TODO handle the case where eval_point falls outside of comp. domain
     uint64_t leaf_index = this->getMortonIndex(this->getLeafBoxIndices(eval_point)); 
     FmmLeaf& containing_leaf = leaves[leaf_index];  
 
