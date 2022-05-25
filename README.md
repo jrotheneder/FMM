@@ -3,7 +3,7 @@ C++ / Mathematica implementation of the FMM for the evaluation of potentials and
 
 #### Sample (integrated via Mathematica's symplectic partitioned Runge Kutta integrator): 
 ![](coll1.gif)
-#### A plot of error distributions included for no other reason than its aesthetic value
+#### A plot of error distributions included for its aesthetic value
 <p align = "center">
 <img src="error_distribution.png" width="350"/>
 </p>
