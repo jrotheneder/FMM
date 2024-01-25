@@ -1,5 +1,5 @@
-# FMM
-C++ / Mathematica implementation of the FMM for the evaluation of potentials and force fields in gravitation/electrostatics problems, parallelized via OpenMP
+# The Fast Multipole Method
+C++ / Mathematica implementation of the The Fast Multipole Method (FMM) for the evaluation of potentials and force fields in gravitation andelectrostatics problems, parallelized via OpenMP. Implementation details are documented in the file `FMM_implementation.pdf` contained in this repository. A more thorough presentation of the mathematical and algorithmtic aspects of the method, as well as an experimental evaluation of this implementation can be found at the [Mathnotes repository](https://github.com/jrotheneder/Mathnotes/blob/main/FMM.pdf) 
 
 #### Sample (integrated via Mathematica's symplectic partitioned Runge Kutta integrator): 
 ![](coll1.gif)
